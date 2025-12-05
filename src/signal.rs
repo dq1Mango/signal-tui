@@ -272,6 +272,7 @@ async fn send<S: Store>(
     d.timestamp = Some(timestamp);
   }
 
+  // maybe deleting this works?
   let messages = manager
     .receive_messages()
     .await
@@ -281,13 +282,13 @@ async fn send<S: Store>(
   // println!("synchronizing messages since last time");
 
   // --- probably dont need to do this cuz we r constantly receiving messages
-  // while let Some(content) = messages.next().await {
-  //   match content {
-  //     Received::QueueEmpty => break,
-  //     Received::Contacts => continue,
-  //     Received::Content(content) => process_incoming_message(manager, attachments_tmp_dir.path(), false, &content).await,
-  //   }
-  // }
+  while let Some(content) = messages.next().await {
+    match content {
+      Received::QueueEmpty => break,
+      Received::Contacts => continue,
+      Received::Content(content) => process_incoming_message(manager, attachments_tmp_dir.path(), false, &content).await,
+    }
+  }
 
   // println!("done synchronizing, sending your message now!");
 
@@ -317,6 +318,7 @@ async fn send<S: Store>(
   //   }
   // })
   // .await?;
+  Logger::log("done sending the message".to_string());
 
   Ok(())
 }

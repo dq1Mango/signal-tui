@@ -780,6 +780,7 @@ impl Chat {
   }
 
   fn send(&mut self, spawner: &SignalSpawner) {
+    Logger::log("sending a message".to_string());
     let data = self.text_input.body.body.clone();
 
     let members = self.participants.members.clone();
@@ -792,6 +793,7 @@ impl Chat {
         attachment_filepath: Vec::new().into(),
       })
     } else {
+      Logger::log("took the wrong path".to_string());
       // group chat:
       // not implemented yet
     }
