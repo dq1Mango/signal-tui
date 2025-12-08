@@ -779,7 +779,7 @@ impl Chat {
     }
   }
 
-  fn send(&mut self, spawner: &SignalSpawner) {
+  fn send<S: Store>(&mut self, spawner: &SignalSpawner<S>) {
     Logger::log("sending a message".to_string());
     let data = self.text_input.body.body.clone();
 
@@ -871,7 +871,7 @@ fn format_duration_fancy(time: &DateTime<Utc>) -> String {
     temp.push_str(" hours ago");
     return temp;
   } else {
-    return time.format("%M %D").to_string();
+    return time.format("%m %d").to_string();
   }
 }
 
@@ -1084,13 +1084,15 @@ fn draw_loading_sreen(state: &LoadState, frame: &mut Frame) {
   // these should only happen like immediately on start up
   if let Some(raw_duration) = state.raw_duration {
     if let Some(latest_timestamp) = state.latest_timestamp {
-      let formatted_duration = format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
+      let formatted_duration =
+        format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
 
       let partial_duration = Utc::now().timestamp_millis() as u64 - latest_timestamp;
 
       let percent = 1.0 as f64 - (partial_duration as f64 / raw_duration as f64);
 
-      let area = center_div(area, Constraint::Percentage(40), Constraint::Percentage(20));
+      // TODO: fiddle with this stuff a little
+      let area = center_div(area, Constraint::Length(40), Constraint::Percentage(20));
 
       let mut area = pad_with_border(Color::White, area, buf);
 
@@ -1208,22 +1210,23 @@ async fn real_main() -> anyhow::Result<()> {
 
   let settings = &Settings::init();
 
-  _ = update_contacts(&mut model, &mut manager).await;
+  let spawner = SignalSpawner::new(manager, action_tx.clone());
 
-  if !model.contacts.contains_key(&model.account.uuid) {
-    bail!("could not find self");
-  }
+  _ = update_contacts(&mut model, &spawner).await;
+
+  // if !model.contacts.contains_key(&model.account.uuid) {
+  //   bail!("could not find self");
+  // }
 
   // match model.find_self(&mut manager).await {
   //   Ok(_) => {}
   //   Err(_) => bail!("could not find self"),
   // };
 
-  let spawner = SignalSpawner::new(action_tx.clone());
-  let listener = SignalSpawner::new(action_tx.clone());
+  // let listener = SignalSpawner::new(action_tx.clone());
 
   // receive all past messages
-  listener.spawn(Cmd::Receive { notifications: false });
+  // listener.spawn(Cmd::Receive { notifications: false });
 
   let mut loading_model = LoadState {
     raw_duration: None,
@@ -1254,13 +1257,7 @@ async fn real_main() -> anyhow::Result<()> {
           }
         }
 
-        update(
-          &mut model,
-          msg.expect("the laws of physics have collapsed"),
-          &mut manager,
-          &spawner,
-        )
-        .await;
+        update(&mut model, msg.expect("the laws of physics have collapsed"), &spawner).await;
       }
 
       Some(Action::Quit) => {
@@ -1304,7 +1301,7 @@ async fn real_main() -> anyhow::Result<()> {
 
     // Process updates as long as they return a non-None message
     while current_msg.is_some() {
-      current_msg = update(&mut model, current_msg.unwrap(), &mut manager, &spawner).await;
+      current_msg = update(&mut model, current_msg.unwrap(), &spawner).await;
     }
   }
 

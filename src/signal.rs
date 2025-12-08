@@ -208,7 +208,7 @@ fn parse_group_master_key(value: &str) -> anyhow::Result<GroupMasterKeyBytes> {
     .map_err(|_| anyhow::format_err!("master key should be 32 bytes long"))
 }
 
-fn attachments_tmp_dir() -> anyhow::Result<TempDir> {
+pub fn attachments_tmp_dir() -> anyhow::Result<TempDir> {
   let attachments_tmp_dir = Builder::new().prefix("presage-attachments").tempdir()?;
   info!(
       path =% attachments_tmp_dir.path().display(),
@@ -273,22 +273,22 @@ async fn send<S: Store>(
   }
 
   // maybe deleting this works?
-  let messages = manager
-    .receive_messages()
-    .await
-    .context("failed to initialize messages stream")?;
-  pin_mut!(messages);
+  // let messages = manager
+  //   .receive_messages()
+  //   .await
+  //   .context("failed to initialize messages stream")?;
+  // pin_mut!(messages);
 
   // println!("synchronizing messages since last time");
 
   // --- probably dont need to do this cuz we r constantly receiving messages
-  while let Some(content) = messages.next().await {
-    match content {
-      Received::QueueEmpty => break,
-      Received::Contacts => continue,
-      Received::Content(content) => process_incoming_message(manager, attachments_tmp_dir.path(), false, &content).await,
-    }
-  }
+  // while let Some(content) = messages.next().await {
+  //   match content {
+  //     Received::QueueEmpty => break,
+  //     Received::Contacts => continue,
+  //     Received::Content(content) => process_incoming_message(manager, attachments_tmp_dir.path(), false, &content).await,
+  //   }
+  // }
 
   // println!("done synchronizing, sending your message now!");
 
@@ -325,7 +325,7 @@ async fn send<S: Store>(
 
 // Note to developers, this is a good example of a function you can use as a source of inspiration
 // to process incoming messages.
-async fn process_incoming_message<S: Store>(
+pub async fn process_incoming_message<S: Store>(
   manager: &mut Manager<S, Registered>,
   attachments_tmp_dir: &Path,
   notifications: bool,
@@ -546,6 +546,8 @@ async fn receive<S: Store>(
 
     _ = output.send(Action::Receive(content));
   }
+
+  Logger::log("our reciever died rip".to_string());
 
   Ok(())
 }

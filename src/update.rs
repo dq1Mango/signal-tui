@@ -121,12 +121,7 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
   }
 }
 
-pub async fn update<S: Store>(
-  model: &mut Model,
-  msg: Action,
-  manager: &mut Manager<S, Registered>,
-  spawner: &SignalSpawner,
-) -> Option<Action> {
+pub async fn update<S: Store>(model: &mut Model, msg: Action, spawner: &SignalSpawner<S>) -> Option<Action> {
   match msg {
     Action::Type(char) => {
       model.current_chat().text_input.insert_char(char);
@@ -138,7 +133,8 @@ pub async fn update<S: Store>(
 
     Action::Scroll(lines) => {
       model.current_chat().location.index = (model.current_chat().location.index as isize + lines)
-        .clamp(0, model.current_chat().messages.len() as isize - 1) as usize;
+        .clamp(0, model.current_chat().messages.len() as isize - 1)
+        as usize;
       //model.current_chat().location.requested_scroll = lines,
     }
 
@@ -165,7 +161,7 @@ pub async fn update<S: Store>(
       }
       Received::Contacts => {
         // update our in memory cache of contacts
-        _ = update_contacts(model, manager).await;
+        _ = update_contacts(model, spawner).await;
       }
       Received::QueueEmpty => {}
     },
@@ -242,14 +238,14 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
   None
 }
 
-pub async fn update_contacts<S: Store>(model: &mut Model, manager: &mut Manager<S, Registered>) -> anyhow::Result<()> {
+pub async fn update_contacts<S: Store>(model: &mut Model, spawner: &SignalSpawner<S>) -> anyhow::Result<()> {
   Logger::log("i gyatt called".to_string());
-  for contact in get_contacts(manager).await? {
+  for contact in spawner.list_contacts().await? {
     if model.contacts.contains_key(&contact.uuid) {
       continue;
     } else {
       let profile_key = Some(ProfileKey::create(contact.profile_key.try_into().expect("we tried")));
-      let profile = retrieve_profile(manager, contact.uuid, profile_key).await?;
+      let profile = spawner.retrieve_profile(contact.uuid, profile_key).await?;
 
       let Some(mut contacts) = Arc::get_mut(&mut model.contacts) else {
         Logger::log("didnt get off so easy".to_string());

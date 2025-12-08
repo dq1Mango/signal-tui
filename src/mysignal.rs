@@ -2,21 +2,57 @@ use tokio;
 // use tokio::runtime::Builder;
 use tokio::sync::mpsc;
 // use tokio::task::LocalSet;
+use tokio::sync::oneshot;
 use tokio::task::spawn_local;
 
+use crate::Profile;
+use crate::ProfileKey;
+use crate::Received;
+use crate::Uuid;
 use crate::logger::Logger;
 use crate::signal::Cmd;
+use crate::signal::attachments_tmp_dir;
+use crate::signal::get_contacts;
+use crate::signal::process_incoming_message;
+use crate::signal::retrieve_profile;
 use crate::signal::run;
 use crate::update::Action;
 
+use anyhow::Context;
+use anyhow::anyhow;
+use futures::StreamExt;
+use futures::pin_mut;
+
+use presage::Error;
+use presage::model::contacts::Contact;
+use presage::store::Store;
 use presage::{Manager, manager::Registered};
 use presage_store_sqlite::{OnNewIdentity, SqliteStore};
 
-pub struct SignalSpawner {
-  send: mpsc::UnboundedSender<Cmd>,
+// pub struct Task<Command, Data> {
+//   cmd: Cmd,
+//   output: oneshot::Sender<Box<T>>,
+// }
+
+type Requester<Data> = mpsc::UnboundedSender<oneshot::Sender<Data>>;
+
+// struct ContactRequest {
+//   output: oneshot::Sender<>
+// }
+
+struct ProfileRequest {
+  output: oneshot::Sender<anyhow::Result<Profile>>,
+  uuid: Uuid,
+  profile_key: Option<ProfileKey>,
 }
 
-impl SignalSpawner {
+pub struct SignalSpawner<S: Store> {
+  send: mpsc::UnboundedSender<Cmd>,
+  contact_requests: Requester<Result<Vec<Contact>, Error<S::Error>>>,
+  profile_requests: mpsc::UnboundedSender<ProfileRequest>,
+}
+
+impl<S: Store> SignalSpawner<S> {
   // pub fn new(output: mpsc::UnboundedSender<Action>) -> Self {
   //   let (send, mut recv) = mpsc::unbounded_channel::<Cmd>();
   //
@@ -28,7 +64,6 @@ impl SignalSpawner {
   //     local.spawn_local(async move {
   //       let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
   //
-  //       // UNWRAPPING ERROR NOT PRODUCTION READY!!!
   //       let config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust)
   //         .await
   //         .unwrap();
@@ -52,24 +87,79 @@ impl SignalSpawner {
   //   Self { send }
   // }
 
-  pub fn new(output: mpsc::UnboundedSender<Action>) -> Self {
+  pub fn new(mut manager: Manager<S, Registered>, output: mpsc::UnboundedSender<Action>) -> Self {
     let (send, mut recv) = mpsc::unbounded_channel::<Cmd>();
+    let (contacts_sender, mut contact_requests) =
+      mpsc::unbounded_channel::<oneshot::Sender<Result<Vec<Contact>, Error<S::Error>>>>();
+    let (profile_sender, mut profile_requests) = mpsc::unbounded_channel();
 
     spawn_local(async move {
-      let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
+      let max_messages_in_a_row = 67;
+      let attachments_tmp_dir = attachments_tmp_dir().expect("this is dumb");
 
-      let config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust)
-        .await
-        .unwrap();
+      // should enable some gracefull shutdown
+      while (!output.is_closed() && !recv.is_closed()) {
+        // currently requests to the manager are processed in a distinct priority,
+        // which we can only wait and see if this was a bad choice
+        while let Ok(contacts_output) = contact_requests.try_recv() {
+          contacts_output.send(get_contacts(&manager).await);
+        }
 
-      let mut manager = Manager::load_registered(config_store).await.expect("cant be fucked");
+        while let Ok(ProfileRequest {
+          output,
+          uuid,
+          profile_key,
+        }) = profile_requests.try_recv()
+        {
+          output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
+        }
 
-      while let Some(new_task) = recv.recv().await {
-        // Logger::log(format!("we gyatt a message but before"));
         let cloned_output = output.clone();
 
-        _ = run(&mut manager, new_task, cloned_output).await;
+        // probably should not be re-making this stream each iteration but im sure its fine
+        let messages = manager
+          .receive_messages()
+          .await
+          .expect("failed to initialize messages stream");
+
+        pin_mut!(messages);
+
+        let mut counter = 0;
+        while let Some(content) = messages.next().await {
+          match &content {
+            Received::QueueEmpty => {
+              _ = output.send(Action::Receive(Received::QueueEmpty));
+              break;
+            }
+            Received::Contacts => {
+              //println!("got contacts synchronization"),
+            }
+            Received::Content(content) => {
+              // this better be fast lmao
+              process_incoming_message(&mut manager, attachments_tmp_dir.path(), false, &content).await
+            }
+          }
+
+          _ = output.send(Action::Receive(content));
+
+          counter += 1;
+          if counter > max_messages_in_a_row {
+            break;
+          }
+        }
       }
+      Logger::log("gracefully shutdown ... (hopefully)".to_string());
+
+      // while let Some(new_task) = recv.recv().await {
+      //   // Logger::log(format!("we gyatt a message but before"));
+      //   let cloned_output = output.clone();
+      //
+      //   let error = run(&mut manager, new_task, cloned_output).await;
+      //
+      //   // if let Cmd::Send { .. } = new_task {
+      //   Logger::log(format!("{:?}", error));
+      //   // }
+      // }
       // If the while loop returns, then all the LocalSpawner
       // objects have been dropped.
     });
@@ -77,14 +167,17 @@ impl SignalSpawner {
     // This will return once all senders are dropped and all
     // spawned tasks have returned.
 
-    Self { send }
+    Self {
+      send: send,
+      contact_requests: contacts_sender,
+      profile_requests: profile_sender,
+    }
   }
 
   // #[tokio::main]
   // pub async fn start(input: output: mpsc::UnboundedSender<Action>) {
   //   let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
   //
-  //   // UNWRAPPING ERROR NOT PRODUCTION READY!!!
   //   let config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust)
   //     .await
   //     .unwrap();
@@ -101,6 +194,26 @@ impl SignalSpawner {
 
   pub fn spawn(&self, task: Cmd) {
     self.send.send(task).expect("Thread with LocalSet has shut down.");
+  }
+
+  pub async fn list_contacts(&self) -> Result<Vec<Contact>, Error<S::Error>> {
+    let (tx, rx) = oneshot::channel();
+
+    self.contact_requests.send(tx);
+
+    return rx.await.expect("kaboom");
+  }
+
+  pub async fn retrieve_profile(&self, uuid: Uuid, mut profile_key: Option<ProfileKey>) -> anyhow::Result<Profile> {
+    let (tx, rx) = oneshot::channel();
+
+    self.profile_requests.send(ProfileRequest {
+      output: tx,
+      uuid,
+      profile_key,
+    });
+
+    return rx.await.expect("kaboom");
   }
 }
 
