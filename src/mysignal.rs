@@ -147,6 +147,11 @@ impl<S: Store> SignalSpawner<S> {
             break;
           }
         }
+
+        while let Ok(task) = recv.try_recv() {
+          Logger::log("gyatt task".to_string());
+          _ = run(&mut manager, task, output.clone()).await;
+        }
       }
       Logger::log("gracefully shutdown ... (hopefully)".to_string());
 
