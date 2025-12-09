@@ -92,7 +92,7 @@ impl<S: Store> SignalSpawner<S> {
     let (profile_sender, mut profile_requests) = mpsc::unbounded_channel();
 
     spawn_local(async move {
-      let max_messages_in_a_row = 67;
+      let max_messages_in_a_row = 25;
       let attachments_tmp_dir = attachments_tmp_dir().expect("this is dumb");
 
       // should enable some gracefull shutdown

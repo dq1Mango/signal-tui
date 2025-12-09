@@ -180,6 +180,7 @@ pub struct Chat {
   participants: MyGroup,
   // thread: Thread
   messages: Vec<Message>,
+  loaded_from: DateTime<Utc>,
   location: Location,
   text_input: TextInput,
 }
@@ -590,6 +591,7 @@ impl Chat {
     Chat {
       participants: group,
       messages: Vec::new(),
+      loaded_from: Utc::now(),
       text_input: TextInput::default(),
       location: Location::zero(),
     }
@@ -769,11 +771,27 @@ impl Chat {
 
     self.messages.insert(i, parsed_message);
 
-    if self.messages.len() - 1 == self.location.index + 1 {
+    if self.messages.len() == 1 {
+      return;
+    }
+
+    // little bit of a goofy statement to not underflow and usize
+    if self.messages.len() - 1 == self.location.index + 1 || i <= self.location.index {
       // Oh noooooo, i have violated the ELM design patterns ....
       // however we will go on with our days ... ?
       self.location.index += 1;
     }
+  }
+
+  fn load_more_messages<S: Store>(&mut self, spawner: &SignalSpawner<S>, delta: TimeDelta) {
+    self.loaded_from = self.loaded_from.checked_sub_signed(delta).unwrap();
+
+    spawner.spawn(Cmd::ListMessages {
+      // not scuffed at all
+      recipient_uuid: Some(self.participants.members[0]),
+      group_master_key: None,
+      from: Some(self.loaded_from.timestamp_millis() as u64),
+    });
   }
 
   fn send<S: Store>(&mut self, spawner: &SignalSpawner<S>) {
@@ -868,7 +886,7 @@ fn format_duration_fancy(time: &DateTime<Utc>) -> String {
     temp.push_str(" hours ago");
     return temp;
   } else {
-    return time.format("%m %d").to_string();
+    return time.format("%m/%d").to_string();
   }
 }
 
@@ -1272,21 +1290,10 @@ async fn real_main() -> anyhow::Result<()> {
   // action_tx.send(Action::Receive(Received::Contacts));
 
   // load some initial messages just in case
-  for chat in &model.chats {
-    if chat.participants.name == "group1".to_string() {
-      continue;
+  for chat in &mut model.chats {
+    if chat.messages.len() < 1 {
+      chat.load_more_messages(&spawner, TimeDelta::try_hours(1).unwrap());
     }
-
-    spawner.spawn(Cmd::ListMessages {
-      recipient_uuid: Some(chat.participants.members[0]),
-      group_master_key: None,
-      from: Some(
-        Utc::now()
-          .checked_sub_signed(TimeDelta::try_hours(1).unwrap())
-          .unwrap()
-          .timestamp_millis() as u64,
-      ),
-    });
   }
 
   while model.running_state != RunningState::OhShit {

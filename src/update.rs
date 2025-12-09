@@ -1,5 +1,6 @@
 use tokio::sync::mpsc::UnboundedSender;
 
+use chrono::TimeDelta;
 use crossterm::event::{self, Event, EventStream, KeyCode};
 
 use futures::{StreamExt, future::FutureExt};
@@ -125,9 +126,16 @@ pub async fn update<S: Store>(model: &mut Model, msg: Action, spawner: &SignalSp
     Action::Send => model.current_chat().send(spawner),
 
     Action::Scroll(lines) => {
-      model.current_chat().location.index = (model.current_chat().location.index as isize + lines)
-        .clamp(0, model.current_chat().messages.len() as isize - 1)
-        as usize;
+      let chat = model.current_chat();
+      if chat.messages.len() > 0 {
+        chat.location.index =
+          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+      }
+
+      if chat.location.index == 0 {
+        Logger::log("loading messages".to_string());
+        chat.load_more_messages(spawner, TimeDelta::try_hours(24).unwrap());
+      }
       //model.current_chat().location.requested_scroll = lines,
     }
 
