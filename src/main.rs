@@ -19,15 +19,13 @@ use std::{
 use presage::libsignal_service::{
   Profile,
   configuration::SignalServers,
-  content::{ContentBody, DataMessage, GroupContextV2},
-  prelude::{Content, ProfileKey, Uuid, UuidError},
-  profile_name::ProfileName,
+  content::DataMessage,
+  prelude::{ProfileKey, Uuid},
 };
 
 use presage::manager::Manager;
-use presage::manager::Registered;
 use presage::model::messages::Received;
-use presage::store::{StateStore, Store, Thread};
+use presage::store::{StateStore, Store};
 use presage_store_sqlite::{OnNewIdentity, SqliteStore};
 
 use ratatui::{
@@ -40,7 +38,6 @@ use ratatui::{
   widgets::{Block, Gauge, Paragraph, Widget},
 };
 
-use anyhow::{anyhow, bail};
 use chrono::{DateTime, TimeDelta, Utc};
 use tokio::sync::mpsc;
 use url::Url;
@@ -1200,7 +1197,7 @@ async fn real_main() -> anyhow::Result<()> {
   }
 
   // initialize all the important stuff
-  let mut manager = Manager::load_registered(config_store)
+  let manager = Manager::load_registered(config_store)
     .await
     .expect("why even try anymore?");
 
@@ -1276,7 +1273,7 @@ async fn real_main() -> anyhow::Result<()> {
 
   // load some initial messages just in case
   for chat in &model.chats {
-    if (chat.participants.name == "group1".to_string()) {
+    if chat.participants.name == "group1".to_string() {
       continue;
     }
 

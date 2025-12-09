@@ -18,8 +18,6 @@ use crate::signal::retrieve_profile;
 use crate::signal::run;
 use crate::update::Action;
 
-use anyhow::Context;
-use anyhow::anyhow;
 use futures::StreamExt;
 use futures::pin_mut;
 
@@ -27,7 +25,7 @@ use presage::Error;
 use presage::model::contacts::Contact;
 use presage::store::Store;
 use presage::{Manager, manager::Registered};
-use presage_store_sqlite::{OnNewIdentity, SqliteStore};
+use presage_store_sqlite::SqliteStore;
 
 // pub struct Task<Command, Data> {
 //   cmd: Cmd,
@@ -98,11 +96,11 @@ impl<S: Store> SignalSpawner<S> {
       let attachments_tmp_dir = attachments_tmp_dir().expect("this is dumb");
 
       // should enable some gracefull shutdown
-      while (!output.is_closed() && !recv.is_closed()) {
+      while !output.is_closed() && !recv.is_closed() {
         // currently requests to the manager are processed in a distinct priority,
         // which we can only wait and see if this was a bad choice
         while let Ok(contacts_output) = contact_requests.try_recv() {
-          contacts_output.send(get_contacts(&manager).await);
+          _ = contacts_output.send(get_contacts(&manager).await);
         }
 
         while let Ok(ProfileRequest {
@@ -111,10 +109,8 @@ impl<S: Store> SignalSpawner<S> {
           profile_key,
         }) = profile_requests.try_recv()
         {
-          output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
+          _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
         }
-
-        let cloned_output = output.clone();
 
         // probably should not be re-making this stream each iteration but im sure its fine
         let messages = manager
@@ -204,15 +200,15 @@ impl<S: Store> SignalSpawner<S> {
   pub async fn list_contacts(&self) -> Result<Vec<Contact>, Error<S::Error>> {
     let (tx, rx) = oneshot::channel();
 
-    self.contact_requests.send(tx);
+    _ = self.contact_requests.send(tx);
 
     return rx.await.expect("kaboom");
   }
 
-  pub async fn retrieve_profile(&self, uuid: Uuid, mut profile_key: Option<ProfileKey>) -> anyhow::Result<Profile> {
+  pub async fn retrieve_profile(&self, uuid: Uuid, profile_key: Option<ProfileKey>) -> anyhow::Result<Profile> {
     let (tx, rx) = oneshot::channel();
 
-    self.profile_requests.send(ProfileRequest {
+    _ = self.profile_requests.send(ProfileRequest {
       output: tx,
       uuid,
       profile_key,

@@ -804,7 +804,7 @@ pub async fn run<S: Store>(
 
       send(manager, Recipient::Group(master_key), data_message).await?;
     }
-    Cmd::RetrieveProfile { uuid, mut profile_key } => {}
+    Cmd::RetrieveProfile { uuid, profile_key } => {}
     Cmd::ListGroups => {
       for group in manager.store().groups().await? {
         match group {
@@ -924,7 +924,7 @@ pub async fn run<S: Store>(
         .await?
         .filter_map(Result::ok)
       {
-        output.send(Action::Receive(Received::Content(Box::new(msg))));
+        _ = output.send(Action::Receive(Received::Content(Box::new(msg))));
       }
     }
     Cmd::Stats => {

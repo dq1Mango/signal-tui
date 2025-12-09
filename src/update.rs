@@ -4,23 +4,16 @@ use crossterm::event::{self, Event, EventStream, KeyCode};
 
 use futures::{StreamExt, future::FutureExt};
 
-use anyhow::anyhow;
-
 // use presage::model::messages::Received;
-use presage::libsignal_service::content::{Content, ContentBody, Metadata};
+use presage::libsignal_service::content::{Content, ContentBody};
 use presage::libsignal_service::prelude::ProfileKey;
 use presage::proto::DataMessage;
 use presage::store::ContentExt;
 use presage::store::Thread;
 
-use presage::Manager;
-use presage::manager::Registered;
-
 use std::sync::Arc;
 
 use crate::logger::Logger;
-use crate::signal::get_contacts;
-use crate::signal::retrieve_profile;
 use crate::*;
 
 #[derive(PartialEq)]
@@ -247,7 +240,7 @@ pub async fn update_contacts<S: Store>(model: &mut Model, spawner: &SignalSpawne
       let profile_key = Some(ProfileKey::create(contact.profile_key.try_into().expect("we tried")));
       let profile = spawner.retrieve_profile(contact.uuid, profile_key).await?;
 
-      let Some(mut contacts) = Arc::get_mut(&mut model.contacts) else {
+      let Some(contacts) = Arc::get_mut(&mut model.contacts) else {
         Logger::log("didnt get off so easy".to_string());
         return Ok(());
       };
