@@ -1,3 +1,5 @@
+# nix shell to set up cargo
+
 { pkgs ? import <nixpkgs> { } }:
 let
   overrides = (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml));
