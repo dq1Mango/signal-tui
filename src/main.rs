@@ -12,10 +12,12 @@ use std::{
   collections::HashMap,
   fmt::Debug,
   hash::Hash,
+  io::{self, Stdout, stdout},
   sync::{Arc, Mutex},
   vec,
 };
 
+use crossterm::{ExecutableCommand, cursor};
 use presage::libsignal_service::{
   Profile,
   configuration::SignalServers,
@@ -539,12 +541,10 @@ impl Message {
   }
 
   fn format_duration(&self) -> String {
-    let time: DateTime<Utc>;
-
-    match &self.metadata {
-      Metadata::NotMyMessage(x) => time = x.sent,
-      Metadata::MyMessage(x) => time = x.sent,
-    }
+    let time = match &self.metadata {
+      Metadata::NotMyMessage(x) => x.sent,
+      Metadata::MyMessage(x) => x.sent,
+    };
 
     let duration = Utc::now().signed_duration_since(time);
 
@@ -559,7 +559,7 @@ impl Message {
       temp.push_str("h");
       return temp;
     } else {
-      return time.format("%M %D").to_string();
+      return time.format("%m/%d").to_string();
     }
 
     // let mut result = num.to_string();
@@ -1289,6 +1289,8 @@ async fn real_main() -> anyhow::Result<()> {
 
   // action_tx.send(Action::Receive(Received::Contacts));
 
+  let mut stdout = stdout();
+
   // load some initial messages just in case
   for chat in &mut model.chats {
     if chat.messages.len() < 1 {
@@ -1298,7 +1300,7 @@ async fn real_main() -> anyhow::Result<()> {
 
   while model.running_state != RunningState::OhShit {
     // Render the current view
-    terminal.draw(|f| view(&mut model, f, settings))?;
+    terminal.draw(|frame| view(&mut model, frame, &mut stdout, settings))?;
 
     // Handle events and map to a Message
     let mut current_msg = action_rx.recv().await;
@@ -1326,8 +1328,6 @@ async fn main() {
     Err(_) => Logger::log(format!("we are NYAT a-okay")),
   }
 }
-
-// TODO: gotta figure out how to model chat state
 
 // an expirmental way to make the borrow checker less mad at me constantly (currently not a fan of
 // it though)
@@ -1442,7 +1442,7 @@ async fn main() {
 //   }
 // }
 
-fn view(model: &mut Model, frame: &mut Frame, settings: &Settings) {
+fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Settings) {
   let title = Line::from(" Counter App Tutorial ".bold());
   let instructions = Line::from(vec![
     " Decrement ".into(),
@@ -1516,6 +1516,12 @@ fn view(model: &mut Model, frame: &mut Frame, settings: &Settings) {
         .render(layout[1], frame.buffer_mut(), settings, contacts, mode);
 
       frame.set_cursor_position(model.current_chat().text_input.cursor_position);
+
+      if model.pinned_mode == Mode::Insert {
+        stdout.execute(cursor::SetCursorStyle::SteadyBar);
+      } else {
+        stdout.execute(cursor::SetCursorStyle::SteadyBlock);
+      }
     }
     Mode::Settings => {
       render_settings(layout[1], frame.buffer_mut(), settings, &model.account);

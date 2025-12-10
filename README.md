@@ -11,6 +11,7 @@ An unnofical minimal terminal interface for the Signal messaging service
 First install [Rust](https://rust-lang.org/tools/install/)
 
 (on nixos you can simply enter the provided shell)
+
     nix-shell rustup.nix
 
 Clone this repo
@@ -31,5 +32,5 @@ The binary will be ./target/release/signal-tui
 
 - neovim-esque modal interface
 - i / esc to toggle between "normal" (move around) and "insert" (type messages)
-- h/j/k/l to navigate in normal mode
+- h / j / k / l to navigate in normal mode
     
