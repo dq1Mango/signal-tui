@@ -550,7 +550,7 @@ impl Message {
         if x.all_read() {
           Line::from(Span::styled(
             [check_icon, check_icon].concat(),
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
           ))
         } else if x.all_delivered() {
           Line::from(Span::styled(
@@ -809,35 +809,44 @@ impl Chat {
     }
   }
 
-  // yeah this aint how it works big dawg
-  // fn add_receipt(&mut self, timestamp: u64) {
-  //   let mut i = self.messages.len();
-  //
-  //   while i > 0 {
-  //     // Logger::log(format!("old timestamp: {} -- new timestamp: {}", ts, timestamp));
-  //
-  //     let ts = match &self.messages[i - 1].metadata {
-  //       Metadata::MyMessage(data) => data.sent.timestamp_millis() as u64,
-  //       Metadata::NotMyMessage(data) => data.sent.timestamp_millis() as u64,
-  //     };
-  //
-  //     if timestamp < ts {
-  //       Logger::log("could not find message to receipt".to_string());
-  //       return;
-  //     }
-  //
-  //     if timestamp == ts {
-  //       break;
-  //     }
-  //
-  //     i -= 1;
-  //   }
-  //
-  //   match self.messages[i].metadata {
-  //     MyMessage{read_by: read_by, ..} => {read_by[0].1 = Some(tim)}
-  //   }
-  //
-  // }
+  fn add_receipt(&mut self, timestamp: u64) {
+    let mut i = self.messages.len() - 1;
+
+    while i > 0 {
+      // Logger::log(format!("old timestamp: {} -- new timestamp: {}", ts, timestamp));
+
+      let ts = match &self.messages[i].metadata {
+        Metadata::MyMessage(data) => data.sent.timestamp_millis() as u64,
+        Metadata::NotMyMessage(data) => data.sent.timestamp_millis() as u64,
+      };
+
+      if timestamp < ts {
+        Logger::log("could not find message to receipt".to_string());
+        return;
+      }
+
+      if timestamp == ts {
+        break;
+      }
+
+      i -= 1;
+    }
+
+    // the borrow checker rly did not want me doing this
+    match &mut self.messages[i].metadata {
+      &mut Metadata::MyMessage(MyMessage {
+        read_by: ref mut read_by,
+        delivered_to: ref mut delivered_to,
+        ..
+      }) => {
+        read_by[0].1 =
+          Some(DateTime::from_timestamp_millis(timestamp as i64).expect("i dont like this time library"));
+        delivered_to[0].1 =
+          Some(DateTime::from_timestamp_millis(timestamp as i64).expect("i dont like this time library"));
+      }
+      _ => {}
+    }
+  }
 
   fn load_more_messages<S: Store>(&mut self, spawner: &SignalSpawner<S>, delta: TimeDelta) {
     self.loaded_from = self.loaded_from.checked_sub_signed(delta).unwrap();

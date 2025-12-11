@@ -9,7 +9,7 @@ use futures::{StreamExt, future::FutureExt};
 // use presage::model::messages::Received;
 use presage::libsignal_service::content::{Content, ContentBody};
 use presage::libsignal_service::prelude::ProfileKey;
-use presage::proto::{DataMessage, SyncMessage};
+use presage::proto::{DataMessage, ReceiptMessage, SyncMessage};
 use presage::store::ContentExt;
 use presage::store::Thread;
 
@@ -252,6 +252,16 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       //   if let Some(message) = sent.message {
       //   }
       // }
+    }
+    ContentBody::ReceiptMessage(ReceiptMessage {
+      r#type: Some(raw_type),
+      timestamp: times,
+    }) => {
+      if let Some(chat) = model.find_chat(thread) {
+        for time in times {
+          chat.add_receipt(time);
+        }
+      }
     }
     _ => {}
   }
