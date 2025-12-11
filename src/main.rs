@@ -360,7 +360,7 @@ impl Model {
     &mut self.chats[self.chat_index]
   }
 
-  fn find_chat(&mut self, thread: Thread) -> Option<&mut Chat> {
+  fn find_chat(&mut self, thread: &Thread) -> Option<&mut Chat> {
     match thread {
       Thread::Contact(uuid) => {
         // Logger::log(format!(
@@ -370,7 +370,7 @@ impl Model {
         // ));
         for chat in &mut self.chats {
           // maybe this rust thing isnt so bad (jk lol)
-          if chat.participants.members == [uuid] {
+          if chat.participants.members == [uuid.clone()] {
             return Some(chat);
           }
         }
@@ -747,8 +747,13 @@ impl Chat {
     }
   }
 
-  fn insert_message(&mut self, message: DataMessage, sender: Uuid, timestamp: u64, mine: bool) {
+  fn insert_message(&mut self, body: &String, meta: Metadata) {
     // let new_timestamp = message.timestamp();
+
+    let timestamp = match &meta {
+      Metadata::MyMessage(data) => data.sent.timestamp_millis() as u64,
+      Metadata::NotMyMessage(data) => data.sent.timestamp_millis() as u64,
+    };
 
     let mut i = self.messages.len();
 
@@ -771,28 +776,28 @@ impl Chat {
       i -= 1;
     }
 
-    let metadata = if mine {
-      Metadata::new_mine(
-        DateTime::from_timestamp_millis(timestamp as i64).expect("kaboom"),
-        &self.participants.members,
-      )
-    } else {
-      Metadata::new_not_mine(
-        DateTime::from_timestamp_millis(timestamp as i64).expect("kaboom"),
-        sender,
-      )
-    };
+    // let metadata = if mine {
+    //   Metadata::new_mine(
+    //     DateTime::from_timestamp_millis(timestamp as i64).expect("kaboom"),
+    //     &self.participants.members,
+    //   )
+    // } else {
+    //   Metadata::new_not_mine(
+    //     DateTime::from_timestamp_millis(timestamp as i64).expect("kaboom"),
+    //     sender,
+    //   )
+    // };
 
-    let body = match &message {
-      DataMessage { body: Some(body), .. } => body,
-      // if there isnt a body its an attachment that we cant display
-      _ => return (),
-      // _ => "Attachment that we cant display yet".to_string().clone(),
-    };
+    // let body = match &message {
+    //   DataMessage { body: Some(body), .. } => body,
+    //   // if there isnt a body its an attachment that we cant display
+    //   _ => return (),
+    //   // _ => "Attachment that we cant display yet".to_string().clone(),
+    // };
 
     let parsed_message = Message {
       body: MultiLineString::new(body),
-      metadata: metadata,
+      metadata: meta,
     };
 
     self.messages.insert(i, parsed_message);

@@ -1,3 +1,4 @@
+use presage::libsignal_service::protocol::ServiceId;
 use presage::proto::sync_message::{Read, Sent};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -13,6 +14,7 @@ use presage::proto::{DataMessage, ReceiptMessage, SyncMessage};
 use presage::store::ContentExt;
 use presage::store::Thread;
 
+use core::time;
 use std::sync::Arc;
 
 use crate::logger::Logger;
@@ -184,39 +186,41 @@ pub async fn update<S: Store>(model: &mut Model, msg: Action, spawner: &SignalSp
 //   slice1.iter().cmp()
 // }
 
-pub fn insert_message(model: &mut Model, message: DataMessage, thread: Thread, timestamp: u64, mine: bool) {
-  match thread {
-    Thread::Contact(uuid) => {
-      // Logger::log(format!(
-      //   "thread: {}, with body: {}",
-      //   uuid,
-      //   message.body.clone().unwrap_or("useless message".to_string())
-      // ));
-      for chat in &mut model.chats {
-        // maybe this rust thing isnt so bad (jk lol)
-        if chat.participants.members == [uuid] {
-          chat.insert_message(message, uuid, timestamp, mine);
-          return;
-        }
-      }
-
-      Logger::log(format!("Could not find a chat that matched the id: {}", uuid));
-    }
-    _ => {}
-  }
-}
+// pub fn insert_message(model: &mut Model, message: DataMessage, thread: Thread, timestamp: u64, mine: bool) {
+//   match thread {
+//     Thread::Contact(uuid) => {
+//       // Logger::log(format!(
+//       //   "thread: {}, with body: {}",
+//       //   uuid,
+//       //   message.body.clone().unwrap_or("useless message".to_string())
+//       // ));
+//       for chat in &mut model.chats {
+//         // maybe this rust thing isnt so bad (jk lol)
+//         if chat.participants.members == [uuid] {
+//           chat.insert_message(message, uuid, timestamp, mine);
+//           return;
+//         }
+//       }
+//
+//       Logger::log(format!("Could not find a chat that matched the id: {}", uuid));
+//     }
+//     _ => {}
+//   }
+// }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
   // Logger::log(format!("{:#?}", content.clone()));
-
+  //
   let ts = content.timestamp();
+  let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
+
   let Ok(mut thread) = Thread::try_from(&content) else {
     Logger::log("failed to derive thread from content".to_string());
     return None;
   };
 
   match content.body {
-    ContentBody::DataMessage(data) => {
+    ContentBody::DataMessage(DataMessage { body: Some(body), .. }) => {
       // some flex-tape on the thread derivation
       let mut mine = false;
       if let Thread::Contact(uuid) = thread {
@@ -225,16 +229,71 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
           mine = true;
         }
       }
-      insert_message(model, data, thread, ts, mine)
+
+      let metadata = if mine {
+        Metadata::MyMessage(MyMessage {
+          sent: timestamp,
+          delivered_to: vec![(model.account.uuid, None)],
+          read_by: vec![(model.account.uuid, None)],
+        })
+      } else {
+        Metadata::NotMyMessage(NotMyMessage {
+          sent: timestamp,
+          sender: content.metadata.sender.raw_uuid(),
+        })
+      };
+
+      let Some(chat) = model.find_chat(&thread) else {
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+        return None;
+      };
+
+      chat.insert_message(&body, metadata);
+
+      // insert_message(model, data, thread, ts, mine)
     }
     ContentBody::SynchronizeMessage(data) => {
       match data {
         SyncMessage {
-          sent: Some(Sent {
-            message: Some(message), ..
-          }),
+          sent:
+            Some(Sent {
+              message: Some(DataMessage { body: Some(body), .. }),
+              ..
+            }),
+          read: read,
           ..
-        } => insert_message(model, message, thread, ts, true),
+        } => {
+          let mut read_by = Vec::new();
+          for receipt in read {
+            let Some(aci) = receipt.sender_aci else {
+              continue;
+            };
+            let Some(timestamp) = receipt.timestamp else { continue };
+            let Some(aci) = ServiceId::parse_from_service_id_string(&aci) else {
+              Logger::log("plz no".to_string());
+              return None;
+            };
+            read_by.push((aci.raw_uuid(), DateTime::from_timestamp_millis(timestamp as i64)));
+          }
+          let metadata = Metadata::MyMessage(MyMessage {
+            sent: timestamp,
+            delivered_to: read_by.clone(),
+            read_by: read_by,
+          });
+
+          let Some(chat) = model.find_chat(&thread) else {
+            Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+            return None;
+          };
+
+          // for uuid in chat.participants.members {
+          //   if !metadata.read_by.contains(&(uuid, _)) {
+          //     metadata.read_by.push((uuid, None));
+          //     metadata.delivered_to.push((uuid, None));
+          //   }
+          // }
+          chat.insert_message(&body, metadata);
+        }
         // SyncMessage {
         //   sent: None,
         //   read: receipts,
@@ -254,10 +313,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       // }
     }
     ContentBody::ReceiptMessage(ReceiptMessage {
-      r#type: Some(raw_type),
+      r#type: Some(_raw_type),
       timestamp: times,
     }) => {
-      if let Some(chat) = model.find_chat(thread) {
+      if let Some(chat) = model.find_chat(&thread) {
         for time in times {
           chat.add_receipt(time);
         }
