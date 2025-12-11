@@ -12,17 +12,20 @@ use std::{
   collections::HashMap,
   fmt::Debug,
   hash::Hash,
-  io::{self, Stdout, stdout},
+  io::{self, Stdout},
   sync::{Arc, Mutex},
   vec,
 };
 
 use crossterm::{ExecutableCommand, cursor};
-use presage::libsignal_service::{
-  Profile,
-  configuration::SignalServers,
-  content::DataMessage,
-  prelude::{ProfileKey, Uuid},
+use presage::{
+  libsignal_service::{
+    Profile,
+    configuration::SignalServers,
+    content::DataMessage,
+    prelude::{ProfileKey, Uuid},
+  },
+  store::Thread,
 };
 
 use presage::manager::Manager;
@@ -355,6 +358,29 @@ impl Model {
   // not really needed but it staves off the need for explicit liiftimes a little longer
   fn current_chat(&mut self) -> &mut Chat {
     &mut self.chats[self.chat_index]
+  }
+
+  fn find_chat(&mut self, thread: Thread) -> Option<&mut Chat> {
+    match thread {
+      Thread::Contact(uuid) => {
+        // Logger::log(format!(
+        //   "thread: {}, with body: {}",
+        //   uuid,
+        //   message.body.clone().unwrap_or("useless message".to_string())
+        // ));
+        for chat in &mut self.chats {
+          // maybe this rust thing isnt so bad (jk lol)
+          if chat.participants.members == [uuid] {
+            return Some(chat);
+          }
+        }
+
+        Logger::log(format!("Could not find a chat that matched the id: {}", uuid));
+      }
+      _ => {}
+    }
+
+    None
   }
 
   fn new_dm_chat(&mut self, profile: Profile, uuid: Uuid) {
@@ -721,7 +747,7 @@ impl Chat {
     }
   }
 
-  fn update(&mut self, message: DataMessage, sender: Uuid, timestamp: u64, mine: bool) {
+  fn insert_message(&mut self, message: DataMessage, sender: Uuid, timestamp: u64, mine: bool) {
     // let new_timestamp = message.timestamp();
 
     let mut i = self.messages.len();
@@ -783,6 +809,36 @@ impl Chat {
     }
   }
 
+  // yeah this aint how it works big dawg
+  // fn add_receipt(&mut self, timestamp: u64) {
+  //   let mut i = self.messages.len();
+  //
+  //   while i > 0 {
+  //     // Logger::log(format!("old timestamp: {} -- new timestamp: {}", ts, timestamp));
+  //
+  //     let ts = match &self.messages[i - 1].metadata {
+  //       Metadata::MyMessage(data) => data.sent.timestamp_millis() as u64,
+  //       Metadata::NotMyMessage(data) => data.sent.timestamp_millis() as u64,
+  //     };
+  //
+  //     if timestamp < ts {
+  //       Logger::log("could not find message to receipt".to_string());
+  //       return;
+  //     }
+  //
+  //     if timestamp == ts {
+  //       break;
+  //     }
+  //
+  //     i -= 1;
+  //   }
+  //
+  //   match self.messages[i].metadata {
+  //     MyMessage{read_by: read_by, ..} => {read_by[0].1 = Some(tim)}
+  //   }
+  //
+  // }
+
   fn load_more_messages<S: Store>(&mut self, spawner: &SignalSpawner<S>, delta: TimeDelta) {
     self.loaded_from = self.loaded_from.checked_sub_signed(delta).unwrap();
 
@@ -800,11 +856,14 @@ impl Chat {
 
     let members = self.participants.members.clone();
 
+    let ts = Utc::now();
+
     if members.len() == 1 {
       // dm chat:
       spawner.spawn(Cmd::Send {
         uuid: members[0],
         message: data,
+        timestamp: ts.timestamp_millis() as u64,
         attachment_filepath: Vec::new().into(),
       })
     } else {
@@ -822,7 +881,7 @@ impl Chat {
       body: MultiLineString::new(&self.text_input.body.body),
       // this now timestamp is a little sketchy cuz the server is the one who actually says when
       // what happened
-      metadata: Metadata::new_mine(Utc::now(), &self.participants.members),
+      metadata: Metadata::new_mine(ts, &self.participants.members),
     });
 
     self.text_input.clear();
@@ -1150,7 +1209,8 @@ async fn real_main() -> anyhow::Result<()> {
 
   // let db_path = default_db_path();
   let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
-  let mut config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+  let mut config_store =
+    SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
 
   // tokio::spawn(run(
   //   Cmd::LinkDevice {
@@ -1263,7 +1323,8 @@ async fn real_main() -> anyhow::Result<()> {
           Received::Content(content) => {
             match loading_model.raw_duration {
               None => {
-                loading_model.raw_duration = Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
+                loading_model.raw_duration =
+                  Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
               }
               _ => {}
             }
@@ -1289,7 +1350,7 @@ async fn real_main() -> anyhow::Result<()> {
 
   // action_tx.send(Action::Receive(Received::Contacts));
 
-  let mut stdout = stdout();
+  let mut stdout = io::stdout();
 
   // load some initial messages just in case
   for chat in &mut model.chats {
@@ -1317,6 +1378,7 @@ async fn real_main() -> anyhow::Result<()> {
 }
 
 // main ---
+#[allow(unexpected_cfgs)]
 #[tokio::main(flavor = "local")]
 async fn main() {
   let result = real_main().await;
@@ -1517,28 +1579,18 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
 
       frame.set_cursor_position(model.current_chat().text_input.cursor_position);
 
+      // raw dawging some stdio
+      // (also i sense this representation of a "mode" is going to collapse in the near future ... )
       if model.pinned_mode == Mode::Insert {
-        stdout.execute(cursor::SetCursorStyle::SteadyBar);
+        _ = stdout.execute(cursor::SetCursorStyle::SteadyBar);
       } else {
-        stdout.execute(cursor::SetCursorStyle::SteadyBlock);
+        _ = stdout.execute(cursor::SetCursorStyle::SteadyBlock);
       }
     }
     Mode::Settings => {
       render_settings(layout[1], frame.buffer_mut(), settings, &model.account);
     } // _ => {}
   }
-
-  //
-  // frame.render_widget(
-  //   Paragraph::new(message_text).right_aligned().block(block),
-  //   frame.area(),
-  // );
-
-  // let p = Paragraph::new("A very long text that might not fit the container...")
-  //   .wrap(Wrap { trim: true });
-  //
-  // let test_rect = Rect::new(10, 10, 7, 20);
-  // frame.render_widget(p, test_rect);
 }
 
 fn pad_with_border(color: Color, area: Rect, buf: &mut Buffer) -> Rect {
@@ -1561,6 +1613,7 @@ fn pad_with_border(color: Color, area: Rect, buf: &mut Buffer) -> Rect {
   // area
 }
 
+// what a goofy function i dont want to fix anytime soon
 fn render_settings(area: Rect, buf: &mut Buffer, _settings: &Settings, account: &Account) {
   let area = pad_with_border(Color::Reset, area, buf);
 

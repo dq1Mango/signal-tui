@@ -1,3 +1,4 @@
+use presage::proto::sync_message::{Read, Sent};
 use tokio::sync::mpsc::UnboundedSender;
 
 use chrono::TimeDelta;
@@ -8,7 +9,7 @@ use futures::{StreamExt, future::FutureExt};
 // use presage::model::messages::Received;
 use presage::libsignal_service::content::{Content, ContentBody};
 use presage::libsignal_service::prelude::ProfileKey;
-use presage::proto::DataMessage;
+use presage::proto::{DataMessage, SyncMessage};
 use presage::store::ContentExt;
 use presage::store::Thread;
 
@@ -194,7 +195,7 @@ pub fn insert_message(model: &mut Model, message: DataMessage, thread: Thread, t
       for chat in &mut model.chats {
         // maybe this rust thing isnt so bad (jk lol)
         if chat.participants.members == [uuid] {
-          chat.update(message, uuid, timestamp, mine);
+          chat.insert_message(message, uuid, timestamp, mine);
           return;
         }
       }
@@ -227,11 +228,30 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       insert_message(model, data, thread, ts, mine)
     }
     ContentBody::SynchronizeMessage(data) => {
-      if let Some(sent) = data.sent {
-        if let Some(message) = sent.message {
-          insert_message(model, message, thread, ts, true);
-        }
+      match data {
+        SyncMessage {
+          sent: Some(Sent {
+            message: Some(message), ..
+          }),
+          ..
+        } => insert_message(model, message, thread, ts, true),
+        // SyncMessage {
+        //   sent: None,
+        //   read: receipts,
+        //   ..
+        // } => {
+        //   if let Some(chat) = model.find_chat(thread) {
+        //     for receipt in receipts {
+        //       chat.add_receipt(receipt.timestamp);
+        //     }
+        //   }
+        // }
+        _ => {}
       }
+      // if let Some(sent) = data.sent {
+      //   if let Some(message) = sent.message {
+      //   }
+      // }
     }
     _ => {}
   }

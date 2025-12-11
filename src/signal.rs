@@ -179,6 +179,7 @@ pub enum Cmd {
     uuid: Uuid,
     // #[clap(long, short = 'm', help = "Contents of the message to send")]
     message: String,
+    timestamp: u64,
     // #[clap(long = "attach", help = "Path to a file to attach, can be repeated")]
     attachment_filepath: Vec<PathBuf>,
   },
@@ -188,6 +189,7 @@ pub enum Cmd {
     message: String,
     // #[clap(long, short = 'k', help = "Master Key of the V2 group (hex string)", value_parser = parse_group_master_key)]
     master_key: GroupMasterKeyBytes,
+    timestamp: u64,
     // #[clap(long = "attach", help = "Path to a file to attach, can be repeated")]
     attachment_filepath: Vec<PathBuf>,
   },
@@ -258,14 +260,17 @@ pub fn default_db_path() -> String {
 async fn send<S: Store>(
   manager: &mut Manager<S, Registered>,
   recipient: Recipient,
+  timestamp: u64,
   msg: impl Into<ContentBody>,
 ) -> anyhow::Result<()> {
   let attachments_tmp_dir = attachments_tmp_dir()?;
 
-  let timestamp = std::time::SystemTime::now()
-    .duration_since(UNIX_EPOCH)
-    .expect("Time went backwards")
-    .as_millis() as u64;
+  // let timestamp = std::time::SystemTime::now()
+  //   .duration_since(UNIX_EPOCH)
+  //   .expect("Time went backwards")
+  //   .as_millis() as u64;
+  //
+  // Logger::log(format!("timestamp 2: {}", timestamp));
 
   let mut content_body = msg.into();
   if let ContentBody::DataMessage(d) = &mut content_body {
@@ -464,10 +469,11 @@ async fn print_message<S: Store>(manager: &Manager<S, Registered>, notifications
     ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          edit_message: Some(EditMessage {
-            data_message: Some(data_message),
-            ..
-          }),
+          edit_message:
+            Some(EditMessage {
+              data_message: Some(data_message),
+              ..
+            }),
           ..
         }),
       ..
@@ -774,6 +780,7 @@ pub async fn run<S: Store>(
     Cmd::Send {
       uuid,
       message,
+      timestamp,
       attachment_filepath,
     } => {
       let attachments = upload_attachments(attachment_filepath, &manager).await?;
@@ -783,11 +790,12 @@ pub async fn run<S: Store>(
         ..Default::default()
       };
 
-      send(manager, Recipient::Contact(uuid), data_message).await?;
+      send(manager, Recipient::Contact(uuid), timestamp, data_message).await?;
     }
     Cmd::SendToGroup {
       message,
       master_key,
+      timestamp,
       attachment_filepath,
     } => {
       let attachments = upload_attachments(attachment_filepath, &manager).await?;
@@ -802,7 +810,7 @@ pub async fn run<S: Store>(
         ..Default::default()
       };
 
-      send(manager, Recipient::Group(master_key), data_message).await?;
+      send(manager, Recipient::Group(master_key), timestamp, data_message).await?;
     }
     Cmd::RetrieveProfile { uuid, profile_key } => {}
     Cmd::ListGroups => {
