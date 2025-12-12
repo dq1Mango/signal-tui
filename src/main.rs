@@ -121,8 +121,8 @@ pub struct NotMyMessage {
 pub struct MyMessage {
   sent: DateTime<Utc>,
   // these r kind of a mess
-  delivered_to: Vec<(Uuid, Option<DateTime<Utc>>)>,
-  read_by: Vec<(Uuid, Option<DateTime<Utc>>)>,
+  delivered_to: Vec<Receipt>,
+  read_by: Vec<Receipt>,
 }
 
 #[derive(Debug)]
@@ -135,6 +135,12 @@ pub enum Metadata {
 pub struct Message {
   body: MultiLineString,
   metadata: Metadata,
+}
+
+#[derive(Debug, Clone)]
+pub struct Receipt {
+  sender: Uuid,
+  timestamp: DateTime<Utc>,
 }
 
 #[derive(Default, Debug)]
@@ -469,11 +475,11 @@ impl TextInput {
 
 impl Metadata {
   fn new_mine(timestamp: DateTime<Utc>, recipients: &Vec<Uuid>) -> Self {
-    let mut the_list = Vec::<(Uuid, Option<DateTime<Utc>>)>::with_capacity(recipients.len());
+    let the_list = Vec::<Receipt>::with_capacity(recipients.len());
 
-    for uuid in recipients {
-      the_list.push((*uuid, None));
-    }
+    // for uuid in recipients {
+    //   the_list.push((*uuid, None));
+    // }
 
     Self::MyMessage(MyMessage {
       sent: timestamp,
@@ -541,18 +547,18 @@ impl Message {
   }
 
   // i thought i knew how lifetimes worked
-  fn format_delivered_status(&self) -> Line<'_> {
+  fn format_delivered_status(&self, num_members: usize) -> Line<'_> {
     let check_icon = " ";
 
     return match &self.metadata {
       Metadata::NotMyMessage(_) => Line::from(""),
       Metadata::MyMessage(x) => {
-        if x.all_read() {
+        if x.all_read(num_members) {
           Line::from(Span::styled(
             [check_icon, check_icon].concat(),
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
           ))
-        } else if x.all_delivered() {
+        } else if x.all_delivered(num_members) {
           Line::from(Span::styled(
             [check_icon, check_icon].concat(),
             Style::default().fg(Color::Gray),
@@ -814,7 +820,9 @@ impl Chat {
     }
   }
 
-  fn add_receipt(&mut self, timestamp: u64) {
+  fn add_receipt(&mut self, receipt: Receipt) {
+    let timestamp = receipt.timestamp.timestamp_millis() as u64;
+
     let mut i = self.messages.len() - 1;
 
     while i > 0 {
@@ -844,10 +852,9 @@ impl Chat {
         delivered_to: ref mut delivered_to,
         ..
       }) => {
-        read_by[0].1 =
-          Some(DateTime::from_timestamp_millis(timestamp as i64).expect("i dont like this time library"));
-        delivered_to[0].1 =
-          Some(DateTime::from_timestamp_millis(timestamp as i64).expect("i dont like this time library"));
+        read_by.push(receipt.clone());
+
+        delivered_to.push(receipt);
       }
       _ => {}
     }
@@ -964,28 +971,15 @@ fn format_duration_fancy(time: &DateTime<Utc>) -> String {
 }
 
 impl MyMessage {
-  fn all_read(&self) -> bool {
-    for (_, date) in &self.read_by {
-      match date {
-        Some(_) => {}
-        None => return false,
-      }
-    }
-
-    true
+  fn all_read(&self, num_members: usize) -> bool {
+    self.read_by.len() == num_members
   }
 
-  fn all_delivered(&self) -> bool {
-    for (_, date) in &self.delivered_to {
-      match date {
-        Some(_) => {}
-        None => return false,
-      }
-    }
-
-    true
+  fn all_delivered(&self, num_members: usize) -> bool {
+    self.delivered_to.len() == num_members
   }
 
+  // what a great function i totall have not forgot about
   fn sent(&self) -> bool {
     true
   }
@@ -1038,7 +1032,11 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
     let time = last_message.format_duration();
 
-    Paragraph::new(vec![Line::from(time), last_message.format_delivered_status()]).render(layout[2], buf);
+    Paragraph::new(vec![
+      Line::from(time),
+      last_message.format_delivered_status(group.members.len()),
+    ])
+    .render(layout[2], buf);
   }
 
   Paragraph::new(innner_lines).render(layout[1], buf);

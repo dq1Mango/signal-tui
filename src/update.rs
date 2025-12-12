@@ -233,8 +233,8 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       let metadata = if mine {
         Metadata::MyMessage(MyMessage {
           sent: timestamp,
-          delivered_to: vec![(model.account.uuid, None)],
-          read_by: vec![(model.account.uuid, None)],
+          delivered_to: vec![],
+          read_by: vec![],
         })
       } else {
         Metadata::NotMyMessage(NotMyMessage {
@@ -273,7 +273,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
               Logger::log("plz no".to_string());
               return None;
             };
-            read_by.push((aci.raw_uuid(), DateTime::from_timestamp_millis(timestamp as i64)));
+            read_by.push(Receipt {
+              sender: aci.raw_uuid(),
+              timestamp: DateTime::from_timestamp_millis(timestamp as i64).expect("i think i gotta ditch chrono"),
+            });
           }
           let metadata = Metadata::MyMessage(MyMessage {
             sent: timestamp,
@@ -318,7 +321,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     }) => {
       if let Some(chat) = model.find_chat(&thread) {
         for time in times {
-          chat.add_receipt(time);
+          chat.add_receipt(Receipt {
+            sender: content.metadata.sender.raw_uuid(),
+            timestamp: DateTime::from_timestamp_millis(time as i64).expect("yeah this is getting old"),
+          });
         }
       }
     }
