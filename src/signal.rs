@@ -5,8 +5,8 @@ use std::convert::TryInto;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::time::UNIX_EPOCH;
 
+// use crate::presage_ext::better_messages;
 use anyhow::{Context as _, anyhow, bail};
 use base64::prelude::*;
 use chrono::Local;
@@ -36,6 +36,7 @@ use presage::proto::ReceiptMessage;
 use presage::proto::SyncMessage;
 use presage::proto::receipt_message;
 use presage::store::ContentExt;
+use presage::store::ContentsStore;
 use presage::{
   Manager,
   libsignal_service::content::{Content, ContentBody, DataMessage, GroupContextV2},
@@ -43,6 +44,7 @@ use presage::{
   store::{Store, Thread},
 };
 use presage_store_sqlite::SqliteStore;
+use presage_store_sqlite::SqliteStoreError;
 use tempfile::Builder;
 use tempfile::TempDir;
 use tokio::task::spawn_local;
@@ -56,6 +58,7 @@ use tracing::warn;
 use tracing::{error, info};
 use url::Url;
 
+use crate::MyManager;
 use crate::Profile;
 use crate::logger::Logger;
 // #[derive(Parser)]
@@ -257,8 +260,8 @@ pub fn default_db_path() -> String {
 //   Ok(())
 // }
 
-async fn send<S: Store>(
-  manager: &mut Manager<S, Registered>,
+async fn send(
+  manager: &mut MyManager,
   recipient: Recipient,
   timestamp: u64,
   msg: impl Into<ContentBody>,
@@ -330,8 +333,8 @@ async fn send<S: Store>(
 
 // Note to developers, this is a good example of a function you can use as a source of inspiration
 // to process incoming messages.
-pub async fn process_incoming_message<S: Store>(
-  manager: &mut Manager<S, Registered>,
+pub async fn process_incoming_message(
+  manager: &mut MyManager,
   attachments_tmp_dir: &Path,
   notifications: bool,
   content: &Content,
@@ -339,48 +342,61 @@ pub async fn process_incoming_message<S: Store>(
   // print_message(manager, notifications, content).await;
 
   let sender = content.metadata.sender.raw_uuid();
-  if let ContentBody::DataMessage(DataMessage { attachments, .. }) = &content.body {
-    for attachment_pointer in attachments {
-      let Ok(attachment_data) = manager.get_attachment(attachment_pointer).await else {
-        warn!("failed to fetch attachment");
-        continue;
-      };
+  let thread = Thread::try_from(content).expect("lets just try this");
 
-      let extensions = mime_guess::get_mime_extensions_str(
-        attachment_pointer
-          .content_type
-          .as_deref()
-          .unwrap_or("application/octet-stream"),
-      );
-      let extension = extensions.and_then(|e| e.first()).unwrap_or(&"bin");
-      let filename = attachment_pointer
-        .file_name
-        .clone()
-        .unwrap_or_else(|| Local::now().format("%Y-%m-%d-%H-%M-%s").to_string());
-      let file_path = attachments_tmp_dir.join(format!("presage-{filename}.{extension}",));
-      match fs::write(&file_path, &attachment_data).await {
-        Ok(_) => info!(%sender, file_path =% file_path.display(), "saved attachment"),
-        Err(error) => error!(
-            %sender,
-            file_path =% file_path.display(),
-            %error,
-            "failed to write attachment"
-        ),
+  match &content.body {
+    ContentBody::DataMessage(DataMessage { attachments, .. }) => {
+      for attachment_pointer in attachments {
+        let Ok(attachment_data) = manager.get_attachment(attachment_pointer).await else {
+          warn!("failed to fetch attachment");
+          continue;
+        };
+
+        let extensions = mime_guess::get_mime_extensions_str(
+          attachment_pointer
+            .content_type
+            .as_deref()
+            .unwrap_or("application/octet-stream"),
+        );
+        let extension = extensions.and_then(|e| e.first()).unwrap_or(&"bin");
+        let filename = attachment_pointer
+          .file_name
+          .clone()
+          .unwrap_or_else(|| Local::now().format("%Y-%m-%d-%H-%M-%s").to_string());
+        let file_path = attachments_tmp_dir.join(format!("presage-{filename}.{extension}",));
+        match fs::write(&file_path, &attachment_data).await {
+          Ok(_) => info!(%sender, file_path =% file_path.display(), "saved attachment"),
+          Err(error) => error!(
+              %sender,
+              file_path =% file_path.display(),
+              %error,
+              "failed to write attachment"
+          ),
+        }
       }
     }
+    ContentBody::ReceiptMessage(ReceiptMessage { timestamp, .. }) => {
+      manager.store().save_message(&thread, content.clone()).await;
+
+      // if let Some(mut message) = store.message(&thread, timestamp) { message.
+      // } else {
+      //   Logger::log("could not find message to add receipt to".to_string());
+      // }
+    }
+    _ => {}
   }
 }
 
-async fn print_message<S: Store>(manager: &Manager<S, Registered>, notifications: bool, content: &Content) {
+async fn print_message<S: Store>(manager: &MyManager, notifications: bool, content: &Content) {
   let Ok(thread) = Thread::try_from(content) else {
     warn!("failed to derive thread from content");
     return;
   };
 
-  async fn format_data_message<S: Store>(
+  async fn format_data_message(
     thread: &Thread,
     data_message: &DataMessage,
-    manager: &Manager<S, Registered>,
+    manager: &MyManager,
   ) -> Option<String> {
     match data_message {
       DataMessage {
@@ -417,7 +433,7 @@ async fn print_message<S: Store>(manager: &Manager<S, Registered>, notifications
     }
   }
 
-  async fn format_contact<S: Store>(uuid: &Uuid, manager: &Manager<S, Registered>) -> String {
+  async fn format_contact(uuid: &Uuid, manager: &MyManager) -> String {
     manager
       .store()
       .contact_by_id(uuid)
@@ -429,7 +445,7 @@ async fn print_message<S: Store>(manager: &Manager<S, Registered>, notifications
       .unwrap_or_else(|| uuid.to_string())
   }
 
-  async fn format_group<S: Store>(key: [u8; 32], manager: &Manager<S, Registered>) -> String {
+  async fn format_group(key: [u8; 32], manager: &MyManager) -> String {
     manager
       .store()
       .group(key)
@@ -527,8 +543,8 @@ async fn print_message<S: Store>(manager: &Manager<S, Registered>, notifications
   }
 }
 
-async fn receive<S: Store>(
-  manager: &mut Manager<S, Registered>,
+async fn receive(
+  manager: &mut MyManager,
   notifications: bool,
   output: mpsc::UnboundedSender<Action>,
 ) -> anyhow::Result<()> {
@@ -642,7 +658,7 @@ pub fn link_device(servers: SignalServers, device_name: String, output: mpsc::Un
 //   Ok(())
 // }
 
-pub async fn get_contacts<S: Store>(manager: &Manager<S, Registered>) -> Result<Vec<Contact>, Error<S::Error>> {
+pub async fn get_contacts(manager: &MyManager) -> Result<Vec<Contact>, Error<SqliteStoreError>> {
   let mut contacts = Vec::new();
   for contact in manager.store().contacts().await?.flatten() {
     contacts.push(contact);
@@ -651,8 +667,8 @@ pub async fn get_contacts<S: Store>(manager: &Manager<S, Registered>) -> Result<
   Ok(contacts)
 }
 
-pub async fn retrieve_profile<S: Store>(
-  manager: &mut Manager<S, Registered>,
+pub async fn retrieve_profile(
+  manager: &mut MyManager,
   uuid: Uuid,
   mut profile_key: Option<ProfileKey>,
 ) -> anyhow::Result<Profile> {
@@ -710,8 +726,8 @@ pub async fn retrieve_profile<S: Store>(
 use crate::update::Action;
 use crate::update::LinkingAction;
 
-pub async fn run<S: Store>(
-  manager: &mut Manager<S, Registered>,
+pub async fn run(
+  manager: &mut MyManager,
   subcommand: Cmd,
   output: mpsc::UnboundedSender<Action>,
 ) -> anyhow::Result<()> {
@@ -980,9 +996,9 @@ pub async fn run<S: Store>(
   Ok(())
 }
 
-async fn upload_attachments<S: Store>(
+async fn upload_attachments(
   attachment_filepath: Vec<PathBuf>,
-  manager: &Manager<S, Registered>,
+  manager: &MyManager,
 ) -> Result<Vec<presage::proto::AttachmentPointer>, anyhow::Error> {
   let attachment_specs: Vec<_> = attachment_filepath
     .into_iter()

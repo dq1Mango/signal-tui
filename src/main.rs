@@ -1,6 +1,7 @@
 mod logger;
 mod model;
 mod mysignal;
+mod presage_ext;
 mod signal;
 
 #[cfg(test)]
@@ -58,6 +59,8 @@ use crate::{logger::Logger, model::MultiLineString, mysignal::SignalSpawner, sig
 // there are three different models to represent all the parts of linking a device, loading
 // past messages, and normal operation, which is ugly dont get me wrong, but i feel like
 // cramming them all in one struct would be worse
+
+pub type MyManager = Manager<SqliteStore, presage::manager::Registered>;
 
 // #[derive(Debug, Default)]
 pub struct Model {
@@ -336,7 +339,7 @@ impl Model {
   }
 
   // total hack for getting our own uuid and is not guarenteed to work
-  // async fn find_self<S: Store>(&mut self, manager: &mut Manager<S, Registered>) -> Result<(), ()> {
+  // async fn find_self(&mut self, manager: &mut Manager<S, Registered>) -> Result<(), ()> {
   //   fn profiles_equal(profile1: &Profile, profile2: &Profile) -> bool {
   //     profile1.name == profile2.name && profile1.about == profile2.about
   //   }
@@ -820,10 +823,14 @@ impl Chat {
     }
   }
 
-  fn add_receipt(&mut self, receipt: Receipt) {
-    let timestamp = receipt.timestamp.timestamp_millis() as u64;
+  fn find_message(&mut self, timestamp: u64) -> Option<&mut Message> {
+    let mut i = self.messages.len();
 
-    let mut i = self.messages.len() - 1;
+    if i == 0 {
+      return None;
+    }
+
+    i -= 1;
 
     while i > 0 {
       // Logger::log(format!("old timestamp: {} -- new timestamp: {}", ts, timestamp));
@@ -835,32 +842,41 @@ impl Chat {
 
       if timestamp < ts {
         Logger::log("could not find message to receipt".to_string());
-        return;
+        return None;
       }
 
       if timestamp == ts {
-        break;
+        return Some(&mut self.messages[i]);
       }
 
       i -= 1;
     }
 
-    // the borrow checker rly did not want me doing this
-    match &mut self.messages[i].metadata {
-      &mut Metadata::MyMessage(MyMessage {
-        read_by: ref mut read_by,
-        delivered_to: ref mut delivered_to,
-        ..
-      }) => {
-        read_by.push(receipt.clone());
-
-        delivered_to.push(receipt);
-      }
-      _ => {}
-    }
+    None
   }
 
-  fn load_more_messages<S: Store>(&mut self, spawner: &SignalSpawner<S>, delta: TimeDelta) {
+  // fn add_receipt(&mut self, receipt: Receipt) {
+  //   let timestamp = receipt.timestamp.timestamp_millis() as u64;
+  //
+  //   // can panick here must fix
+  //   let mut i = self.messages.len() - 1;
+  //
+  //   // the borrow checker rly did not want me doing this
+  //   match &mut self.messages[i].metadata {
+  //     &mut Metadata::MyMessage(MyMessage {
+  //       read_by: ref mut read_by,
+  //       delivered_to: ref mut delivered_to,
+  //       ..
+  //     }) => {
+  //       read_by.push(receipt.clone());
+  //
+  //       delivered_to.push(receipt);
+  //     }
+  //     _ => {}
+  //   }
+  // }
+  //
+  fn load_more_messages(&mut self, spawner: &SignalSpawner, delta: TimeDelta) {
     self.loaded_from = self.loaded_from.checked_sub_signed(delta).unwrap();
 
     spawner.spawn(Cmd::ListMessages {
@@ -871,7 +887,7 @@ impl Chat {
     });
   }
 
-  fn send<S: Store>(&mut self, spawner: &SignalSpawner<S>) {
+  fn send(&mut self, spawner: &SignalSpawner) {
     Logger::log("sending a message".to_string());
     let data = self.text_input.body.body.clone();
 

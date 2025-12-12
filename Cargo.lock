@@ -4189,6 +4189,7 @@ dependencies = [
  "qrcodegen",
  "ratatui",
  "ratatui-image",
+ "sqlx",
  "tempfile",
  "tokio",
  "tracing",

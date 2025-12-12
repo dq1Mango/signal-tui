@@ -1,3 +1,5 @@
+use presage::store::Thread;
+use presage_store_sqlite::SqliteStoreError;
 use tokio;
 // use tokio::runtime::Builder;
 use tokio::sync::mpsc;
@@ -21,6 +23,7 @@ use crate::update::Action;
 use futures::StreamExt;
 use futures::pin_mut;
 
+use crate::MyManager;
 use presage::Error;
 use presage::model::contacts::Contact;
 use presage::store::Store;
@@ -44,13 +47,19 @@ struct ProfileRequest {
   profile_key: Option<ProfileKey>,
 }
 
-pub struct SignalSpawner<S: Store> {
+struct NewReceipts {
+  thread: Thread,
+  sender: Uuid,
+  timestamps: Vec<u64>,
+}
+
+pub struct SignalSpawner {
   send: mpsc::UnboundedSender<Cmd>,
-  contact_requests: Requester<Result<Vec<Contact>, Error<S::Error>>>,
+  contact_requests: Requester<Result<Vec<Contact>, Error<SqliteStoreError>>>,
   profile_requests: mpsc::UnboundedSender<ProfileRequest>,
 }
 
-impl<S: Store> SignalSpawner<S> {
+impl SignalSpawner {
   // pub fn new(output: mpsc::UnboundedSender<Action>) -> Self {
   //   let (send, mut recv) = mpsc::unbounded_channel::<Cmd>();
   //
@@ -85,10 +94,10 @@ impl<S: Store> SignalSpawner<S> {
   //   Self { send }
   // }
 
-  pub fn new(mut manager: Manager<S, Registered>, output: mpsc::UnboundedSender<Action>) -> Self {
+  pub fn new(mut manager: MyManager, output: mpsc::UnboundedSender<Action>) -> Self {
     let (send, mut recv) = mpsc::unbounded_channel::<Cmd>();
     let (contacts_sender, mut contact_requests) =
-      mpsc::unbounded_channel::<oneshot::Sender<Result<Vec<Contact>, Error<S::Error>>>>();
+      mpsc::unbounded_channel::<oneshot::Sender<Result<Vec<Contact>, Error<SqliteStoreError>>>>();
     let (profile_sender, mut profile_requests) = mpsc::unbounded_channel();
 
     spawn_local(async move {
@@ -145,9 +154,16 @@ impl<S: Store> SignalSpawner<S> {
         }
 
         while let Ok(task) = recv.try_recv() {
-          Logger::log("gyatt task".to_string());
           _ = run(&mut manager, task, output.clone()).await;
         }
+
+        // while let Ok(receipts) = recv.try_recv() {
+        //   let store = manager.store();
+        //
+        //   for ts in receipts.
+        //
+        //   if let Some(message) = store.message(&thread, receipts)
+        // }
       }
       Logger::log("gracefully shutdown ... (hopefully)".to_string());
 
@@ -197,7 +213,7 @@ impl<S: Store> SignalSpawner<S> {
     self.send.send(task).expect("Thread with LocalSet has shut down.");
   }
 
-  pub async fn list_contacts(&self) -> Result<Vec<Contact>, Error<S::Error>> {
+  pub async fn list_contacts(&self) -> Result<Vec<Contact>, Error<SqliteStoreError>> {
     let (tx, rx) = oneshot::channel();
 
     _ = self.contact_requests.send(tx);

@@ -118,7 +118,7 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
   }
 }
 
-pub async fn update<S: Store>(model: &mut Model, msg: Action, spawner: &SignalSpawner<S>) -> Option<Action> {
+pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> Option<Action> {
   match msg {
     Action::Type(char) => {
       model.current_chat().text_input.insert_char(char);
@@ -209,7 +209,7 @@ pub async fn update<S: Store>(model: &mut Model, msg: Action, spawner: &SignalSp
 // }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
-  // Logger::log(format!("{:#?}", content.clone()));
+  Logger::log(format!("{:#?}", content.clone()));
   //
   let ts = content.timestamp();
   let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
@@ -260,24 +260,24 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
               message: Some(DataMessage { body: Some(body), .. }),
               ..
             }),
-          read: read,
+          // read: read,
           ..
         } => {
           let mut read_by = Vec::new();
-          for receipt in read {
-            let Some(aci) = receipt.sender_aci else {
-              continue;
-            };
-            let Some(timestamp) = receipt.timestamp else { continue };
-            let Some(aci) = ServiceId::parse_from_service_id_string(&aci) else {
-              Logger::log("plz no".to_string());
-              return None;
-            };
-            read_by.push(Receipt {
-              sender: aci.raw_uuid(),
-              timestamp: DateTime::from_timestamp_millis(timestamp as i64).expect("i think i gotta ditch chrono"),
-            });
-          }
+          // for receipt in read {
+          //   let Some(aci) = receipt.sender_aci else {
+          //     continue;
+          //   };
+          //   let Some(timestamp) = receipt.timestamp else { continue };
+          //   let Some(aci) = ServiceId::parse_from_service_id_string(&aci) else {
+          //     Logger::log("plz no".to_string());
+          //     return None;
+          //   };
+          //   read_by.push(Receipt {
+          //     sender: aci.raw_uuid(),
+          //     timestamp: DateTime::from_timestamp_millis(timestamp as i64).expect("i think i gotta ditch chrono"),
+          //   });
+          // }
           let metadata = Metadata::MyMessage(MyMessage {
             sent: timestamp,
             delivered_to: read_by.clone(),
@@ -321,10 +321,16 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     }) => {
       if let Some(chat) = model.find_chat(&thread) {
         for time in times {
-          chat.add_receipt(Receipt {
-            sender: content.metadata.sender.raw_uuid(),
-            timestamp: DateTime::from_timestamp_millis(time as i64).expect("yeah this is getting old"),
-          });
+          if let Some(message) = chat.find_message(time) {
+            if let Metadata::MyMessage(MyMessage { read_by, .. }) = &mut message.metadata {
+              read_by.push(Receipt {
+                sender: content.metadata.sender.raw_uuid(),
+                timestamp: DateTime::from_timestamp_millis(ts as i64).expect("yeah this is getting old"),
+              });
+            }
+          } else {
+            Logger::log("didnt find chat".to_string());
+          }
         }
       }
     }
@@ -334,7 +340,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
   None
 }
 
-pub async fn update_contacts<S: Store>(model: &mut Model, spawner: &SignalSpawner<S>) -> anyhow::Result<()> {
+pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyhow::Result<()> {
   Logger::log("i gyatt called".to_string());
   for contact in spawner.list_contacts().await? {
     if model.contacts.contains_key(&contact.uuid) {
@@ -356,13 +362,13 @@ pub async fn update_contacts<S: Store>(model: &mut Model, spawner: &SignalSpawne
   Ok(())
 }
 
-// async fn print_message<S: Store>(manager: &Manager<S, Registered>, notifications: bool, content: &Content) {
+// async fn print_message(manager: &Manager<S, Registered>, notifications: bool, content: &Content) {
 //   let Ok(thread) = Thread::try_from(content) else {
 //     warn!("failed to derive thread from content");
 //     return;
 //   };
 //
-//   async fn format_data_message<S: Store>(
+//   async fn format_data_message(
 //     thread: &Thread,
 //     data_message: &DataMessage,
 //     manager: &Manager<S, Registered>,
@@ -400,7 +406,7 @@ pub async fn update_contacts<S: Store>(model: &mut Model, spawner: &SignalSpawne
 //     }
 //   }
 //
-//   async fn format_contact<S: Store>(uuid: &Uuid, manager: &Manager<S, Registered>) -> String {
+//   async fn format_contact(uuid: &Uuid, manager: &Manager<S, Registered>) -> String {
 //     manager
 //       .store()
 //       .contact_by_id(uuid)
@@ -412,7 +418,7 @@ pub async fn update_contacts<S: Store>(model: &mut Model, spawner: &SignalSpawne
 //       .unwrap_or_else(|| uuid.to_string())
 //   }
 //
-//   async fn format_group<S: Store>(key: [u8; 32], manager: &Manager<S, Registered>) -> String {
+//   async fn format_group(key: [u8; 32], manager: &Manager<S, Registered>) -> String {
 //     manager
 //       .store()
 //       .group(key)
