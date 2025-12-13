@@ -463,7 +463,10 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 
   if let Some(msg) = match &content.body {
-    ContentBody::NullMessage(_) => Some(Msg::Received(&thread, "Null message (for example deleted)".to_string())),
+    ContentBody::NullMessage(_) => Some(Msg::Received(
+      &thread,
+      "Null message (for example deleted)".to_string(),
+    )),
     ContentBody::DataMessage(data_message) => format_data_message(&thread, data_message, manager)
       .await
       .map(|body| Msg::Received(&thread, body)),
@@ -537,7 +540,12 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     println!("{prefix} / {body}");
 
     if notifications {
-      if let Err(error) = Notification::new().summary(&prefix).body(&body).icon("presage").show() {
+      if let Err(error) = Notification::new()
+        .summary(&prefix)
+        .body(&body)
+        .icon("presage")
+        .show()
+      {
         error!(%error, "failed to display desktop notification");
       }
     }
@@ -945,9 +953,10 @@ pub async fn run(
       };
       for msg in manager
         .store()
-        .messages(&thread, from.unwrap_or(0)..)
+        .raw_messages(&thread, from.unwrap_or(0)..)
         .await?
         .filter_map(Result::ok)
+        .rev()
       {
         _ = output.send(Action::Receive(Received::Content(Box::new(msg))));
       }

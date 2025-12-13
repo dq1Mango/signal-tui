@@ -244,7 +244,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       };
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+        Logger::log(format!(
+          "Could not find a chat that matched the id: {:#?}",
+          thread
+        ));
         return None;
       };
 
@@ -263,7 +266,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
           // read: read,
           ..
         } => {
-          let mut read_by = Vec::new();
+          let read_by = Vec::new();
           // for receipt in read {
           //   let Some(aci) = receipt.sender_aci else {
           //     continue;
@@ -285,7 +288,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
           });
 
           let Some(chat) = model.find_chat(&thread) else {
-            Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+            Logger::log(format!(
+              "Could not find a chat that matched the id: {:#?}",
+              thread
+            ));
             return None;
           };
 
@@ -346,7 +352,9 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
     if model.contacts.contains_key(&contact.uuid) {
       continue;
     } else {
-      let profile_key = Some(ProfileKey::create(contact.profile_key.try_into().expect("we tried")));
+      let profile_key = Some(ProfileKey::create(
+        contact.profile_key.try_into().expect("we tried"),
+      ));
       let profile = spawner.retrieve_profile(contact.uuid, profile_key).await?;
 
       let Some(contacts) = Arc::get_mut(&mut model.contacts) else {
