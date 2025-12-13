@@ -40,11 +40,12 @@ use presage::store::ContentsStore;
 use presage::{
   Manager,
   libsignal_service::content::{Content, ContentBody, DataMessage, GroupContextV2},
-  manager::Registered,
   store::{Store, Thread},
 };
 use presage_store_sqlite::SqliteStore;
 use presage_store_sqlite::SqliteStoreError;
+// use crate::database::SqliteStore;
+// use crate::database::SqliteStoreError;
 use tempfile::Builder;
 use tempfile::TempDir;
 use tokio::task::spawn_local;

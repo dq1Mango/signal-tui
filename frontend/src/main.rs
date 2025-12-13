@@ -3,7 +3,6 @@ mod model;
 mod mysignal;
 mod presage_ext;
 mod signal;
-
 #[cfg(test)]
 mod tests;
 
@@ -33,6 +32,7 @@ use presage::manager::Manager;
 use presage::model::messages::Received;
 use presage::store::{StateStore, Store};
 use presage_store_sqlite::{OnNewIdentity, SqliteStore};
+// use crate::database::{OnNewIdentity, SqliteStore};
 
 use ratatui::{
   Frame,

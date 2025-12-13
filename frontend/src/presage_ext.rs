@@ -10,6 +10,8 @@
 //
 // use sqlx::{query, query_as, query_scalar, types::Json};
 //
+// use crate::MyManager;
+//
 // // struct copied from sqlite-store cuz ofc its private
 // #[derive(Debug)]
 // pub struct SqlMessage {
@@ -25,13 +27,13 @@
 //   pub was_plaintext: bool,
 // }
 //
-// pub async fn better_messages<S: Store>(
-//   manager: &mut Manager<S, Registered>,
+// pub async fn better_messages(
+//   manager: &mut MyManager,
 //   thread: &Thread,
 //   start: u64,
 //   end: u64,
 // ) -> Result<Vec<Content>, SqliteStoreError> {
-//   let store = manager.store();
+//   let store = manager.store().aci_protocol_store().store;
 //
 //   let (group_master_key, recipient_id) = thread.unzip();
 //
@@ -62,7 +64,7 @@
 //     end_incl,
 //     end_excl
 //   )
-//   .fetch_all(&store.db)
+//   .fetch_all(&store.db())
 //   .await?;
 //
 //   Ok(Box::new(rows.into_iter().map(TryInto::try_into)))
