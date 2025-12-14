@@ -54,7 +54,9 @@ use qrcodegen::QrCodeEcc;
 // use crate::signal::*;
 use crate::signal::link_device;
 use crate::update::*;
-use crate::{logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction};
+use crate::{
+  logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction,
+};
 
 // there are three different models to represent all the parts of linking a device, loading
 // past messages, and normal operation, which is ugly dont get me wrong, but i feel like
@@ -120,10 +122,14 @@ pub struct NotMyMessage {
   sent: DateTime<Utc>,
 }
 
+pub enum ReceiptType {
+  Delivered,
+  Read,
+}
+
 #[derive(Debug)]
 pub struct MyMessage {
   sent: DateTime<Utc>,
-  // these r kind of a mess
   delivered_to: Vec<Receipt>,
   read_by: Vec<Receipt>,
 }
@@ -756,6 +762,15 @@ impl Chat {
     }
   }
 
+  fn last_message_mut(&mut self) -> Option<&mut Message> {
+    let last = self.messages.len();
+    if last <= 0 {
+      None
+    } else {
+      Some(&mut self.messages[last - 1])
+    }
+  }
+
   fn insert_message(&mut self, body: &String, meta: Metadata) {
     // let new_timestamp = message.timestamp();
 
@@ -824,21 +839,23 @@ impl Chat {
   }
 
   fn find_message(&mut self, timestamp: u64) -> Option<&mut Message> {
+    // Logger::log(format!("looking for: {}", timestamp));
     let mut i = self.messages.len();
 
     if i == 0 {
       return None;
     }
 
-    i -= 1;
-
     while i > 0 {
       // Logger::log(format!("old timestamp: {} -- new timestamp: {}", ts, timestamp));
+      i -= 1;
 
       let ts = match &self.messages[i].metadata {
         Metadata::MyMessage(data) => data.sent.timestamp_millis() as u64,
         Metadata::NotMyMessage(data) => data.sent.timestamp_millis() as u64,
       };
+
+      // Logger::log(format!("checking: {}", ts));
 
       if timestamp < ts {
         Logger::log("could not find message to receipt".to_string());
@@ -848,8 +865,6 @@ impl Chat {
       if timestamp == ts {
         return Some(&mut self.messages[i]);
       }
-
-      i -= 1;
     }
 
     None
@@ -1021,7 +1036,8 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
   let area = pad_with_border(color, area, buf);
 
-  let layout = Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
+  let layout =
+    Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
 
   // let image = StatefulImage::default().resize(Resize::Crop(None));
   // let mut pfp = match &self.pfp {
@@ -1361,7 +1377,12 @@ async fn real_main() -> anyhow::Result<()> {
           }
         }
 
-        update(&mut model, msg.expect("the laws of physics have collapsed"), &spawner).await;
+        update(
+          &mut model,
+          msg.expect("the laws of physics have collapsed"),
+          &spawner,
+        )
+        .await;
       }
 
       Some(Action::Quit) => {

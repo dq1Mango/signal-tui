@@ -10,6 +10,7 @@ use futures::{StreamExt, future::FutureExt};
 // use presage::model::messages::Received;
 use presage::libsignal_service::content::{Content, ContentBody};
 use presage::libsignal_service::prelude::ProfileKey;
+use presage::proto::receipt_message::{self, Type};
 use presage::proto::{DataMessage, ReceiptMessage, SyncMessage};
 use presage::store::ContentExt;
 use presage::store::Thread;
@@ -210,7 +211,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
   Logger::log(format!("{:#?}", content.clone()));
-  //
+
   let ts = content.timestamp();
   let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
 
@@ -252,6 +253,43 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       };
 
       chat.insert_message(&body, metadata);
+
+      // insert_message(model, data, thread, ts, mine)
+    }
+
+    // maybe this is a ratchet acting as a delivery receipt? maybe...?
+    ContentBody::DataMessage(DataMessage {
+      body: None,
+      flags: Some(4),
+      ..
+    }) => {
+      Logger::log("found ratchet/receipt".to_string());
+      // some flex-tape on the thread derivation
+      // let mut mine = false;
+      if let Thread::Contact(uuid) = thread {
+        if uuid == model.account.uuid {
+          thread = Thread::Contact(content.metadata.destination.raw_uuid());
+          // mine = true;
+        }
+      }
+
+      let Some(chat) = model.find_chat(&thread) else {
+        Logger::log(format!(
+          "Could not find a chat that matched the id: {:#?}",
+          thread
+        ));
+        return None;
+      };
+
+      let message = chat.last_message_mut();
+      if let Metadata::MyMessage(metadata) = &mut message?.metadata {
+        if metadata.delivered_to.len() == 0 {
+          metadata.delivered_to.push(Receipt {
+            timestamp: timestamp,
+            sender: content.metadata.sender.raw_uuid(),
+          });
+        }
+      }
 
       // insert_message(model, data, thread, ts, mine)
     }
@@ -321,18 +359,29 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       //   }
       // }
     }
-    ContentBody::ReceiptMessage(ReceiptMessage {
-      r#type: Some(_raw_type),
-      timestamp: times,
-    }) => {
+    ContentBody::ReceiptMessage(receipt_message) => {
       if let Some(chat) = model.find_chat(&thread) {
+        let kind = receipt_message.r#type();
+        let times = receipt_message.timestamp;
+
         for time in times {
           if let Some(message) = chat.find_message(time) {
-            if let Metadata::MyMessage(MyMessage { read_by, .. }) = &mut message.metadata {
-              read_by.push(Receipt {
+            if let Metadata::MyMessage(MyMessage {
+              read_by,
+              delivered_to,
+              ..
+            }) = &mut message.metadata
+            {
+              let receipt = Receipt {
                 sender: content.metadata.sender.raw_uuid(),
-                timestamp: DateTime::from_timestamp_millis(ts as i64).expect("yeah this is getting old"),
-              });
+                timestamp: timestamp,
+              };
+
+              match kind {
+                Type::Delivery => delivered_to.push(receipt),
+                Type::Read => read_by.push(receipt),
+                _ => {}
+              }
             }
           } else {
             Logger::log("didnt find chat".to_string());

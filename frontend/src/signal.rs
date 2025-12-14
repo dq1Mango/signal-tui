@@ -304,10 +304,10 @@ async fn send(
   match recipient {
     Recipient::Contact(uuid) => {
       info!(recipient =% uuid, "sending message to contact");
-      manager
+      let result = manager
         .send_message(ServiceId::Aci(uuid.into()), content_body, timestamp)
-        .await
-        .expect("failed to send message");
+        .await;
+      Logger::log(format!("can we print this?: {:#?}", result));
     }
     Recipient::Group(master_key) => {
       info!("sending message to group");
@@ -376,8 +376,8 @@ pub async fn process_incoming_message(
         }
       }
     }
-    ContentBody::ReceiptMessage(ReceiptMessage { timestamp, .. }) => {
-      manager.store().save_message(&thread, content.clone()).await;
+    ContentBody::ReceiptMessage(_) => {
+      _ = manager.store().save_message(&thread, content.clone()).await;
 
       // if let Some(mut message) = store.message(&thread, timestamp) { message.
       // } else {
