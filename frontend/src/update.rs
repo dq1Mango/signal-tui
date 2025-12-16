@@ -210,7 +210,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
 // }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
-  Logger::log(format!("{:#?}", content.clone()));
+  // Logger::log(format!("{:#?}", content.clone()));
 
   let ts = content.timestamp();
   let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
@@ -399,12 +399,20 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
   Logger::log("updating contacts".to_string());
   for contact in spawner.list_contacts().await? {
     if model.contacts.contains_key(&contact.uuid) {
+      Logger::log("already_gyatt key".to_string());
       continue;
     } else {
-      let profile_key = Some(ProfileKey::create(
-        contact.profile_key.try_into().expect("we tried"),
-      ));
-      let profile = spawner.retrieve_profile(contact.uuid, profile_key).await?;
+      let profile_key = match contact.profile_key.clone().try_into() {
+        Ok(bytes) => Some(ProfileKey::create(bytes)),
+        Err(_) => {
+          Logger::log(format!("died on this dude: {:#?}", contact));
+          None
+        }
+      };
+      let profile = match spawner.retrieve_profile(contact.uuid, profile_key).await {
+        Ok(x) => x,
+        Err(_) => continue,
+      };
 
       let Some(contacts) = Arc::get_mut(&mut model.contacts) else {
         Logger::log("didnt get off so easy".to_string());
@@ -413,6 +421,7 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
 
       contacts.insert(contact.uuid, profile.clone());
 
+      Logger::log("making new dm chat".to_string());
       model.new_dm_chat(profile, contact.uuid);
     }
   }

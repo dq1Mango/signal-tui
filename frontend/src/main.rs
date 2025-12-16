@@ -1320,6 +1320,7 @@ async fn real_main() -> anyhow::Result<()> {
 
   let spawner = SignalSpawner::new(manager, action_tx.clone());
 
+  // spawner.sync_contacts();
   _ = update_contacts(&mut model, &spawner).await;
   _ = model.update_groups(&spawner).await;
 

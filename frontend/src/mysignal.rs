@@ -255,6 +255,10 @@ impl SignalSpawner {
 
     return rx.await.expect("kaboom once again");
   }
+
+  pub fn sync_contacts(&self) {
+    _ = self.send.send(Cmd::SyncContacts);
+  }
 }
 
 // fn try_from(content: &Content) -> Result<Thread, UuidError> {
