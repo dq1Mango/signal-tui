@@ -396,7 +396,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 }
 
 pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyhow::Result<()> {
-  Logger::log("i gyatt called".to_string());
+  Logger::log("updating contacts".to_string());
   for contact in spawner.list_contacts().await? {
     if model.contacts.contains_key(&contact.uuid) {
       continue;
@@ -417,6 +417,24 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
     }
   }
   Ok(())
+}
+
+impl Model {
+  pub async fn update_groups(self: &mut Self, spawner: &SignalSpawner) -> anyhow::Result<()> {
+    Logger::log("updating groups".to_string());
+    for (key, group) in spawner.list_groups().await {
+      if !self.groups.contains_key(&key) {
+        self.new_group_chat(key, &group);
+      }
+      let Some(groups) = Arc::get_mut(&mut self.groups) else {
+        Logger::log("didnt get off so easy".to_string());
+        continue;
+      };
+
+      groups.insert(key, group);
+    }
+    Ok(())
+  }
 }
 
 // async fn print_message(manager: &Manager<S, Registered>, notifications: bool, content: &Content) {

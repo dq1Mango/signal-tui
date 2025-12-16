@@ -1,3 +1,5 @@
+use presage::libsignal_service::zkgroup::GroupMasterKeyBytes;
+use presage::model::groups::Group;
 use presage::store::Thread;
 use presage_store_sqlite::SqliteStoreError;
 use tokio;
@@ -15,6 +17,7 @@ use crate::logger::Logger;
 use crate::signal::Cmd;
 use crate::signal::attachments_tmp_dir;
 use crate::signal::get_contacts;
+use crate::signal::list_groups;
 use crate::signal::process_incoming_message;
 use crate::signal::retrieve_profile;
 use crate::signal::run;
@@ -26,8 +29,6 @@ use futures::pin_mut;
 use crate::MyManager;
 use presage::Error;
 use presage::model::contacts::Contact;
-use presage::store::Store;
-use presage::{Manager, manager::Registered};
 use presage_store_sqlite::SqliteStore;
 
 // pub struct Task<Command, Data> {
@@ -47,15 +48,16 @@ struct ProfileRequest {
   profile_key: Option<ProfileKey>,
 }
 
-struct NewReceipts {
-  thread: Thread,
-  sender: Uuid,
-  timestamps: Vec<u64>,
-}
+// struct NewReceipts {
+//   thread: Thread,
+//   sender: Uuid,
+//   timestamps: Vec<u64>,
+// }
 
 pub struct SignalSpawner {
   send: mpsc::UnboundedSender<Cmd>,
   contact_requests: Requester<Result<Vec<Contact>, Error<SqliteStoreError>>>,
+  group_requests: Requester<Vec<(GroupMasterKeyBytes, Group)>>,
   profile_requests: mpsc::UnboundedSender<ProfileRequest>,
 }
 
@@ -96,8 +98,13 @@ impl SignalSpawner {
 
   pub fn new(mut manager: MyManager, output: mpsc::UnboundedSender<Action>) -> Self {
     let (send, mut recv) = mpsc::unbounded_channel::<Cmd>();
+
+    // i feel like the compiler should be able to figure out these types
     let (contacts_sender, mut contact_requests) =
       mpsc::unbounded_channel::<oneshot::Sender<Result<Vec<Contact>, Error<SqliteStoreError>>>>();
+    let (groups_sender, mut group_requests) =
+      mpsc::unbounded_channel::<oneshot::Sender<Vec<(GroupMasterKeyBytes, Group)>>>();
+
     let (profile_sender, mut profile_requests) = mpsc::unbounded_channel();
 
     spawn_local(async move {
@@ -108,10 +115,17 @@ impl SignalSpawner {
       while !output.is_closed() && !recv.is_closed() {
         // currently requests to the manager are processed in a distinct priority,
         // which we can only wait and see if this was a bad choice
+
+        // contact requests
         while let Ok(contacts_output) = contact_requests.try_recv() {
           _ = contacts_output.send(get_contacts(&manager).await);
         }
 
+        while let Ok(groups_output) = group_requests.try_recv() {
+          _ = groups_output.send(list_groups(&manager).await);
+        }
+
+        // profile requestss
         while let Ok(ProfileRequest {
           output,
           uuid,
@@ -188,6 +202,7 @@ impl SignalSpawner {
       send: send,
       contact_requests: contacts_sender,
       profile_requests: profile_sender,
+      group_requests: groups_sender,
     }
   }
 
@@ -231,6 +246,14 @@ impl SignalSpawner {
     });
 
     return rx.await.expect("kaboom");
+  }
+
+  pub async fn list_groups(&self) -> Vec<(GroupMasterKeyBytes, Group)> {
+    let (tx, rx) = oneshot::channel();
+
+    _ = self.group_requests.send(tx);
+
+    return rx.await.expect("kaboom once again");
   }
 }
 

@@ -197,6 +197,12 @@ pub enum Cmd {
     // #[clap(long = "attach", help = "Path to a file to attach, can be repeated")]
     attachment_filepath: Vec<PathBuf>,
   },
+  SendToThread {
+    message: String,
+    thread: Thread,
+    timestamp: u64,
+    attachment_filepath: Vec<PathBuf>,
+  },
   SyncContacts,
   // #[clap(about = "Print various statistics useful for debugging")]
   Stats,
@@ -260,6 +266,13 @@ pub fn default_db_path() -> String {
 //
 //   Ok(())
 // }
+
+fn recipient_from_thread(thread: Thread) -> Recipient {
+  match thread {
+    Thread::Contact(uuid) => Recipient::Contact(uuid),
+    Thread::Group(group_key) => Recipient::Group(group_key),
+  }
+}
 
 async fn send(
   manager: &mut MyManager,
@@ -669,12 +682,30 @@ pub fn link_device(servers: SignalServers, device_name: String, output: mpsc::Un
 
 pub async fn get_contacts(manager: &MyManager) -> Result<Vec<Contact>, Error<SqliteStoreError>> {
   let mut contacts = Vec::new();
+  // im really counting on some zero cost abstraction as we r just making it into a vec and then
+  // back in to an iter after we return
   for contact in manager.store().contacts().await?.flatten() {
     contacts.push(contact);
   }
 
   Ok(contacts)
 }
+
+pub async fn list_groups(manager: &MyManager) -> Vec<(GroupMasterKeyBytes, Group)> {
+  let mut groups = Vec::new();
+  // im really counting on some zero cost abstraction as we r just making it into a vec and then
+  // back in to an iter after we return
+  for (key, group) in match manager.store().groups().await {
+    Ok(x) => x.flatten(),
+    Err(_) => return groups,
+  } {
+    groups.push((key, group));
+  }
+
+  groups
+}
+
+// pub async fn get_groups(manager: &MyManager) ->
 
 pub async fn retrieve_profile(
   manager: &mut MyManager,
@@ -836,6 +867,32 @@ pub async fn run(
       };
 
       send(manager, Recipient::Group(master_key), timestamp, data_message).await?;
+    }
+    Cmd::SendToThread {
+      message,
+      thread,
+      timestamp,
+      attachment_filepath,
+    } => {
+      let attachments = upload_attachments(attachment_filepath, &manager).await?;
+
+      let group_v2 = match &thread {
+        Thread::Group(master_key) => Some(GroupContextV2 {
+          master_key: Some(master_key.to_vec()),
+          revision: Some(0),
+          ..Default::default()
+        }),
+        Thread::Contact(_) => None,
+      };
+
+      let data_message = DataMessage {
+        body: Some(message),
+        attachments,
+        group_v2,
+        ..Default::default()
+      };
+
+      send(manager, recipient_from_thread(thread), timestamp, data_message).await?;
     }
     Cmd::RetrieveProfile { uuid, profile_key } => {}
     Cmd::ListGroups => {

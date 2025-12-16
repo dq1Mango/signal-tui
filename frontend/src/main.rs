@@ -22,9 +22,11 @@ use presage::{
   libsignal_service::{
     Profile,
     configuration::SignalServers,
-    content::DataMessage,
+    // content::DataMessage,
     prelude::{ProfileKey, Uuid},
+    zkgroup::GroupMasterKeyBytes,
   },
+  model::groups::Group,
   store::Thread,
 };
 
@@ -70,6 +72,7 @@ pub struct Model {
   mode: Arc<Mutex<Mode>>,
   pinned_mode: Mode,
   contacts: Contacts,
+  groups: Groups,
   // groups: Vec<Group,
   chats: Vec<Chat>,
   chat_index: usize,
@@ -181,8 +184,8 @@ impl Clone for PhoneNumber {
 struct MyGroup {
   name: String,
   // icon: Option<MyImageWrapper>,
-  members: Vec<Uuid>,
   _description: String,
+  num_members: usize,
 }
 
 // #[derive(Debug, Default)]
@@ -194,10 +197,13 @@ struct MyGroup {
 // }
 
 type Contacts = Arc<HashMap<Uuid, Profile>>;
+type Groups = Arc<HashMap<GroupMasterKeyBytes, Group>>;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Chat {
-  participants: MyGroup,
+  thread: Thread,
+  display: MyGroup,
+  // a little convenience field so u dont have to get that hash map every time
   // thread: Thread
   messages: Vec<Message>,
   loaded_from: DateTime<Utc>,
@@ -330,6 +336,7 @@ impl Model {
     let model = Model {
       chat_index: 0,
       contacts: Arc::new(contacts),
+      groups: Arc::new(HashMap::new()),
       chats: Vec::new().into(),
       account: account,
       running_state: RunningState::Running,
@@ -376,42 +383,59 @@ impl Model {
   }
 
   fn find_chat(&mut self, thread: &Thread) -> Option<&mut Chat> {
-    match thread {
-      Thread::Contact(uuid) => {
-        // Logger::log(format!(
-        //   "thread: {}, with body: {}",
-        //   uuid,
-        //   message.body.clone().unwrap_or("useless message".to_string())
-        // ));
-        for chat in &mut self.chats {
-          // maybe this rust thing isnt so bad (jk lol)
-          if chat.participants.members == [uuid.clone()] {
-            return Some(chat);
-          }
-        }
-
-        Logger::log(format!("Could not find a chat that matched the id: {}", uuid));
+    for chat in &mut self.chats {
+      // maybe this rust thing isnt so bad (jk lol)
+      if chat.thread == *thread {
+        return Some(chat);
       }
-      _ => {}
     }
+    // match thread {
+    //   Thread::Contact(uuid) => {
+    //     // Logger::log(format!(
+    //     //   "thread: {}, with body: {}",
+    //     //   uuid,
+    //     //   message.body.clone().unwrap_or("useless message".to_string())
+    //     // ));
+    //
+    //     Logger::log(format!("Could not find a chat that matched the id: {}", uuid));
+    //   }
+    //   _ => {}
+    // }
 
     None
   }
 
   fn new_dm_chat(&mut self, profile: Profile, uuid: Uuid) {
-    let chat = Chat::new(MyGroup {
-      name: if let Some(name) = profile.name {
-        name.given_name
-      } else {
-        "".to_string()
+    let chat = Chat::new(
+      self,
+      MyGroup {
+        name: if let Some(name) = profile.name {
+          name.given_name
+        } else {
+          "".to_string()
+        },
+        _description: if let Some(about) = profile.about {
+          about
+        } else {
+          "".to_string()
+        },
+        num_members: 1,
       },
-      _description: if let Some(about) = profile.about {
-        about
-      } else {
-        "".to_string()
+      Thread::Contact(uuid),
+    );
+
+    self.chats.push(chat);
+  }
+  pub fn new_group_chat(&mut self, group_key: GroupMasterKeyBytes, group: &Group) {
+    let chat = Chat::new(
+      self,
+      MyGroup {
+        name: group.title.clone(),
+        _description: group.description.clone().unwrap_or("".to_string()),
+        num_members: group.members.len(),
       },
-      members: vec![uuid],
-    });
+      Thread::Group(group_key),
+    );
 
     self.chats.push(chat);
   }
@@ -483,8 +507,8 @@ impl TextInput {
 }
 
 impl Metadata {
-  fn new_mine(timestamp: DateTime<Utc>, recipients: &Vec<Uuid>) -> Self {
-    let the_list = Vec::<Receipt>::with_capacity(recipients.len());
+  fn new_mine(timestamp: DateTime<Utc>, members: usize) -> Self {
+    let the_list = Vec::<Receipt>::with_capacity(members);
 
     // for uuid in recipients {
     //   the_list.push((*uuid, None));
@@ -628,9 +652,11 @@ fn _format_vec(vec: &Vec<String>) -> String {
 
 impl Chat {
   // TODO: start here and make the group descriptions reflect that of the contact
-  fn new(group: MyGroup) -> Self {
+  fn new(model: &Model, display: MyGroup, thread: Thread) -> Self {
     Chat {
-      participants: group,
+      thread: thread,
+      display,
+
       messages: Vec::new(),
       loaded_from: Utc::now(),
       text_input: TextInput::default(),
@@ -894,35 +920,35 @@ impl Chat {
   fn load_more_messages(&mut self, spawner: &SignalSpawner, delta: TimeDelta) {
     self.loaded_from = self.loaded_from.checked_sub_signed(delta).unwrap();
 
+    let (uuid, group_key) = match &self.thread {
+      Thread::Contact(uuid) => (Some(uuid.clone()), None),
+      Thread::Group(group_key) => (None, Some(group_key.clone())),
+    };
+
     spawner.spawn(Cmd::ListMessages {
       // not scuffed at all
-      recipient_uuid: Some(self.participants.members[0]),
-      group_master_key: None,
+      recipient_uuid: uuid,
+      group_master_key: group_key,
       from: Some(self.loaded_from.timestamp_millis() as u64),
     });
   }
 
   fn send(&mut self, spawner: &SignalSpawner) {
     Logger::log("sending a message".to_string());
+    // slight optimization possible here
     let data = self.text_input.body.body.clone();
 
-    let members = self.participants.members.clone();
+    // let members = self.participants.members.clone();
 
     let ts = Utc::now();
 
-    if members.len() == 1 {
-      // dm chat:
-      spawner.spawn(Cmd::Send {
-        uuid: members[0],
-        message: data,
-        timestamp: ts.timestamp_millis() as u64,
-        attachment_filepath: Vec::new().into(),
-      })
-    } else {
-      Logger::log("took the wrong path".to_string());
-      // group chat:
-      // not implemented yet
-    }
+    // dm chat:
+    spawner.spawn(Cmd::SendToThread {
+      thread: self.thread.clone(),
+      message: data,
+      timestamp: ts.timestamp_millis() as u64,
+      attachment_filepath: Vec::new().into(),
+    });
 
     // maybe i should implement this by returning an Action enum but i cant be bothered rn
     //
@@ -933,7 +959,7 @@ impl Chat {
       body: MultiLineString::new(&self.text_input.body.body),
       // this now timestamp is a little sketchy cuz the server is the one who actually says when
       // what happened
-      metadata: Metadata::new_mine(ts, &self.participants.members),
+      metadata: Metadata::new_mine(ts, self.display.num_members),
     });
 
     self.text_input.clear();
@@ -1051,7 +1077,7 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
   // Some(image) => StatefulImage::new().render(area, buf, &mut image.0),
   // None => {}
   // }
-  let group = &chat.participants;
+  let group = &chat.display;
   let mut innner_lines: Vec<Line> = vec![Line::from(group.name.shrink(layout[1].width).bold())];
 
   // display the last message sent in the chat if there was one (there usually will be one)
@@ -1066,50 +1092,13 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
     Paragraph::new(vec![
       Line::from(time),
-      last_message.format_delivered_status(group.members.len()),
+      last_message.format_delivered_status(chat.display.num_members),
     ])
     .render(layout[2], buf);
   }
 
   Paragraph::new(innner_lines).render(layout[1], buf);
 }
-
-// impl Group {
-//   fn render(&mut self, last_message: &Message, area: Rect, buf: &mut Buffer) {
-//     Block::bordered().border_set(border::THICK).render(area, buf);
-//
-//     let mut area = area;
-//     area.x += 1;
-//     area.width -= 2;
-//     area.height -= 2;
-//     area.y += 1;
-//
-//     let layout = Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
-//
-//     // let image = StatefulImage::default().resize(Resize::Crop(None));
-//     // let mut pfp = match &self.pfp {
-//     //   Some(x) => x.0,
-//     //   None => panic!("Aaaaaahhhhh"),
-//     // };
-//     // // StatefulImage::render(image, layout[0], buf, &mut pfp);
-//     // let image: StatefulImage<StatefulProtocol> = StatefulImage::default();
-//     StatefulImage::new().render(area, buf, &mut self.icon.as_mut().unwrap().0);
-//     let message_text: Vec<String> = last_message.body.fit(layout[1].width, layout[1].height - 1);
-//
-//     let mut innner_lines: Vec<Line> = vec![Line::from(self.name.shrink(layout[1].width).bold())];
-//
-//     for line in message_text {
-//       innner_lines.push(Line::from(line));
-//     }
-//
-//     Paragraph::new(innner_lines).render(layout[1], buf);
-//
-//     let time = format_duration(last_message);
-//
-//     Paragraph::new(vec![Line::from(time), last_message.format_delivered_status()]).render(layout[2], buf);
-//   }
-// }
-// /
 
 fn one_by_two_area(x: u16, y: u16) -> Rect {
   Rect {
@@ -1332,6 +1321,7 @@ async fn real_main() -> anyhow::Result<()> {
   let spawner = SignalSpawner::new(manager, action_tx.clone());
 
   _ = update_contacts(&mut model, &spawner).await;
+  _ = model.update_groups(&spawner).await;
 
   // if !model.contacts.contains_key(&model.account.uuid) {
   //   bail!("could not find self");
