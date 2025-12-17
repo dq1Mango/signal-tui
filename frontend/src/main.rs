@@ -530,11 +530,21 @@ impl Metadata {
 
 impl Message {
   fn render(&mut self, area: Rect, buf: &mut Buffer, settings: &Settings, contacts: &Contacts, active: bool) {
+    // should probably define this in settings
+    let min_message_width = 15;
+
+    // dont render anything if theres not enough space so we dont panic!
+    if area.width < min_message_width {
+      return;
+    }
+
     let color = if active { Color::Magenta } else { Color::Reset };
 
     let mut block = Block::bordered()
       .border_set(border::THICK)
       .border_style(Style::default().fg(color));
+
+    let mut bottom_title = Line::from(self.format_duration());
 
     match &self.metadata {
       Metadata::NotMyMessage(meta) => {
@@ -551,15 +561,12 @@ impl Message {
         block = block.title_top(Line::from(name).left_aligned());
       }
       Metadata::MyMessage(_) => {
-        block = block.title_bottom(
-          Line::from(vec![
-            Span::from(self.format_duration()),
-            self.format_delivered_status(1),
-          ])
-          .right_aligned(),
-        );
+        bottom_title.push_span(Span::from(" "));
+        bottom_title.push_span(self.format_delivered_status(1));
       }
     }
+
+    block = block.title_bottom(bottom_title.right_aligned());
 
     // this ugly shadow cost me a good 15 mins of my life ... but im not changing it
     let mut my_area = area.clone();
@@ -569,9 +576,9 @@ impl Message {
     let vec_lines: Vec<String> = self.body.as_trimmed_lines(my_area.width - 2);
 
     // shrink the message to fit if it does not need mutliple lines
-    let min_message_size = 15;
+
     if vec_lines.len() == 1 {
-      my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_size);
+      my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_width);
     }
 
     // "allign" the chat to the right if it was sent by you
