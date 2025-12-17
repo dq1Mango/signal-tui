@@ -1,5 +1,4 @@
-use presage::libsignal_service::protocol::ServiceId;
-use presage::proto::sync_message::{Read, Sent};
+use presage::proto::sync_message::Sent;
 use tokio::sync::mpsc::UnboundedSender;
 
 use chrono::TimeDelta;
@@ -10,12 +9,11 @@ use futures::{StreamExt, future::FutureExt};
 // use presage::model::messages::Received;
 use presage::libsignal_service::content::{Content, ContentBody};
 use presage::libsignal_service::prelude::ProfileKey;
-use presage::proto::receipt_message::{self, Type};
+use presage::proto::receipt_message::Type;
 use presage::proto::{DataMessage, ReceiptMessage, SyncMessage};
 use presage::store::ContentExt;
 use presage::store::Thread;
 
-use core::time;
 use std::sync::Arc;
 
 use crate::logger::Logger;
@@ -138,7 +136,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
 
       if chat.location.index == 0 {
         Logger::log("loading messages".to_string());
-        chat.load_more_messages(spawner, TimeDelta::try_hours(24).unwrap());
+        chat.load_more_messages(spawner, TimeDelta::try_hours(2).unwrap());
       }
       //model.current_chat().location.requested_scroll = lines,
     }
@@ -222,6 +220,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
   match content.body {
     ContentBody::DataMessage(DataMessage { body: Some(body), .. }) => {
+      Logger::log(format!("DataMessage: {:#?}", body.clone()));
       // some flex-tape on the thread derivation
       let mut mine = false;
       if let Thread::Contact(uuid) = thread {
@@ -263,7 +262,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       flags: Some(4),
       ..
     }) => {
-      Logger::log("found ratchet/receipt".to_string());
+      Logger::log("found fake receipt".to_string());
       // some flex-tape on the thread derivation
       // let mut mine = false;
       if let Thread::Contact(uuid) = thread {
@@ -384,9 +383,14 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
               }
             }
           } else {
-            Logger::log("didnt find chat".to_string());
+            // Logger::log(format!(
+            //   "didnt find message in thread: {:#?} with timestamp: {:?}",
+            //   thread, ts
+            // ));
           }
         }
+      } else {
+        Logger::log(format!("didnt find chat with thread: {:#?}", thread));
       }
     }
     _ => {}
@@ -398,6 +402,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyhow::Result<()> {
   Logger::log("updating contacts".to_string());
   for contact in spawner.list_contacts().await? {
+    // Logger::log(format!("{}", contact.inbox_position));
     if model.contacts.contains_key(&contact.uuid) {
       Logger::log("already_gyatt key".to_string());
       continue;
@@ -405,7 +410,7 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
       let profile_key = match contact.profile_key.clone().try_into() {
         Ok(bytes) => Some(ProfileKey::create(bytes)),
         Err(_) => {
-          Logger::log(format!("died on this dude: {:#?}", contact));
+          // Logger::log(format!("died on this dude: {:#?}", contact));
           None
         }
       };

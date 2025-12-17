@@ -9,6 +9,7 @@ mod tests;
 mod update;
 
 use std::{
+  cmp,
   collections::HashMap,
   fmt::Debug,
   hash::Hash,
@@ -407,7 +408,6 @@ impl Model {
 
   fn new_dm_chat(&mut self, profile: Profile, uuid: Uuid) {
     let chat = Chat::new(
-      self,
       MyGroup {
         name: if let Some(name) = profile.name {
           name.given_name
@@ -428,7 +428,6 @@ impl Model {
   }
   pub fn new_group_chat(&mut self, group_key: GroupMasterKeyBytes, group: &Group) {
     let chat = Chat::new(
-      self,
       MyGroup {
         name: group.title.clone(),
         _description: group.description.clone().unwrap_or("".to_string()),
@@ -537,19 +536,31 @@ impl Message {
       .border_set(border::THICK)
       .border_style(Style::default().fg(color));
 
-    if let Metadata::NotMyMessage(x) = &self.metadata {
-      let name = match &contacts[&x.sender].name {
-        Some(name) => {
-          name.given_name.clone()
-          // match &name.family_name {
-          //   Some(family_name) => family_name.clone(),
-          //   None => name.given_name.clone(),
-          // }
-        }
-        None => "smthns borken".to_string(),
-      };
-      block = block.title_top(Line::from(name).left_aligned());
+    match &self.metadata {
+      Metadata::NotMyMessage(meta) => {
+        let name = match &contacts[&meta.sender].name {
+          Some(name) => {
+            name.given_name.clone()
+            // match &name.family_name {
+            //   Some(family_name) => family_name.clone(),
+            //   None => name.given_name.clone(),
+            // }
+          }
+          None => "smthns borken".to_string(),
+        };
+        block = block.title_top(Line::from(name).left_aligned());
+      }
+      Metadata::MyMessage(_) => {
+        block = block.title_bottom(
+          Line::from(vec![
+            Span::from(self.format_duration()),
+            self.format_delivered_status(1),
+          ])
+          .right_aligned(),
+        );
+      }
     }
+
     // this ugly shadow cost me a good 15 mins of my life ... but im not changing it
     let mut my_area = area.clone();
     my_area.width = (area.width as f32 * settings.message_width_ratio + 0.5) as u16;
@@ -558,8 +569,9 @@ impl Message {
     let vec_lines: Vec<String> = self.body.as_trimmed_lines(my_area.width - 2);
 
     // shrink the message to fit if it does not need mutliple lines
+    let min_message_size = 15;
     if vec_lines.len() == 1 {
-      my_area.width = vec_lines[0].len() as u16 + 2;
+      my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_size);
     }
 
     // "allign" the chat to the right if it was sent by you
@@ -580,26 +592,26 @@ impl Message {
   }
 
   // i thought i knew how lifetimes worked
-  fn format_delivered_status(&self, num_members: usize) -> Line<'_> {
+  fn format_delivered_status<'explicit>(&self, num_members: usize) -> Span<'explicit> {
     let check_icon = " ";
 
     return match &self.metadata {
-      Metadata::NotMyMessage(_) => Line::from(""),
+      Metadata::NotMyMessage(_) => Span::from(""),
       Metadata::MyMessage(x) => {
         if x.all_read(num_members) {
-          Line::from(Span::styled(
+          Span::styled(
             [check_icon, check_icon].concat(),
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
-          ))
+          )
         } else if x.all_delivered(num_members) {
-          Line::from(Span::styled(
+          Span::styled(
             [check_icon, check_icon].concat(),
             Style::default().fg(Color::Gray),
-          ))
+          )
         } else if x.sent() {
-          Line::from(Span::styled(check_icon, Style::default().fg(Color::Gray)))
+          Span::styled(check_icon, Style::default().fg(Color::Gray))
         } else {
-          Line::from(Span::styled("_", Style::default().fg(Color::White)))
+          Span::styled("_", Style::default().fg(Color::White))
         }
       }
     };
@@ -652,7 +664,7 @@ fn _format_vec(vec: &Vec<String>) -> String {
 
 impl Chat {
   // TODO: start here and make the group descriptions reflect that of the contact
-  fn new(model: &Model, display: MyGroup, thread: Thread) -> Self {
+  fn new(display: MyGroup, thread: Thread) -> Self {
     Chat {
       thread: thread,
       display,
@@ -884,7 +896,10 @@ impl Chat {
       // Logger::log(format!("checking: {}", ts));
 
       if timestamp < ts {
-        Logger::log("could not find message to receipt".to_string());
+        // Logger::log(format!(
+        //   "could not find message at time: {:?} in thread: {:#?}",
+        //   timestamp, self.thread
+        // ));
         return None;
       }
 
@@ -1092,7 +1107,7 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
     Paragraph::new(vec![
       Line::from(time),
-      last_message.format_delivered_status(chat.display.num_members),
+      Line::from(last_message.format_delivered_status(chat.display.num_members)),
     ])
     .render(layout[2], buf);
   }

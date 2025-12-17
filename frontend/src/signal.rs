@@ -320,7 +320,6 @@ async fn send(
       let result = manager
         .send_message(ServiceId::Aci(uuid.into()), content_body, timestamp)
         .await;
-      Logger::log(format!("can we print this?: {:#?}", result));
     }
     Recipient::Group(master_key) => {
       info!("sending message to group");
