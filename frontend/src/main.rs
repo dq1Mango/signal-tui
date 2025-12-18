@@ -1365,6 +1365,8 @@ async fn real_main() -> anyhow::Result<()> {
     latest_timestamp: None,
   };
 
+  Logger::log("about to draw the first loading screen".to_string());
+
   loop {
     terminal.draw(|f| draw_loading_sreen(&loading_model, f))?;
 

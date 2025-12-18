@@ -44,6 +44,7 @@ use presage::{
 };
 use presage_store_sqlite::SqliteStore;
 use presage_store_sqlite::SqliteStoreError;
+// use presage_store_sqlite::SqliteStoreError;
 // use crate::database::SqliteStore;
 // use crate::database::SqliteStoreError;
 use tempfile::Builder;
@@ -406,11 +407,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     return;
   };
 
-  async fn format_data_message(
-    thread: &Thread,
-    data_message: &DataMessage,
-    manager: &MyManager,
-  ) -> Option<String> {
+  async fn format_data_message(thread: &Thread, data_message: &DataMessage, manager: &MyManager) -> Option<String> {
     match data_message {
       DataMessage {
         quote: Some(Quote {
@@ -475,10 +472,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 
   if let Some(msg) = match &content.body {
-    ContentBody::NullMessage(_) => Some(Msg::Received(
-      &thread,
-      "Null message (for example deleted)".to_string(),
-    )),
+    ContentBody::NullMessage(_) => Some(Msg::Received(&thread, "Null message (for example deleted)".to_string())),
     ContentBody::DataMessage(data_message) => format_data_message(&thread, data_message, manager)
       .await
       .map(|body| Msg::Received(&thread, body)),
@@ -501,11 +495,10 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          edit_message:
-            Some(EditMessage {
-              data_message: Some(data_message),
-              ..
-            }),
+          edit_message: Some(EditMessage {
+            data_message: Some(data_message),
+            ..
+          }),
           ..
         }),
       ..
@@ -552,12 +545,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     println!("{prefix} / {body}");
 
     if notifications {
-      if let Err(error) = Notification::new()
-        .summary(&prefix)
-        .body(&body)
-        .icon("presage")
-        .show()
-      {
+      if let Err(error) = Notification::new().summary(&prefix).body(&body).icon("presage").show() {
         error!(%error, "failed to display desktop notification");
       }
     }
@@ -680,16 +668,25 @@ pub fn link_device(servers: SignalServers, device_name: String, output: mpsc::Un
 // }
 
 pub async fn get_contacts(manager: &MyManager) -> Result<Vec<Contact>, Error<SqliteStoreError>> {
-  let mut contacts = Vec::new();
   // im really counting on some zero cost abstraction as we r just making it into a vec and then
   // back in to an iter after we return
-  for contact in manager.store().contacts().await?.flatten() {
-    contacts.push(contact);
+  // ---
+  // HAH that did not work at all but thankfully im goated
+  //
+  let oldtacts = manager.store().raw_contacts().await?;
+  let mut contacts = Vec::with_capacity(oldtacts.len());
+
+  for contact in oldtacts {
+    if contact.profile_key.len() == 0 {
+      continue;
+    }
+    contacts.push(contact.try_into().expect("kaboom"));
   }
 
   Ok(contacts)
 }
 
+// this guy might be next on the chopping block...
 pub async fn list_groups(manager: &MyManager) -> Vec<(GroupMasterKeyBytes, Group)> {
   let mut groups = Vec::new();
   // im really counting on some zero cost abstraction as we r just making it into a vec and then

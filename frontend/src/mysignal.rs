@@ -29,8 +29,8 @@ use futures::pin_mut;
 use crate::MyManager;
 use presage::Error;
 use presage::model::contacts::Contact;
-use presage_store_sqlite::SqliteStore;
-
+use presage::store::ContentsStore;
+use presage_store_sqlite::ContactsIter;
 // pub struct Task<Command, Data> {
 //   cmd: Cmd,
 //   output: oneshot::Sender<Box<T>>,
@@ -47,12 +47,6 @@ struct ProfileRequest {
   uuid: Uuid,
   profile_key: Option<ProfileKey>,
 }
-
-// struct NewReceipts {
-//   thread: Thread,
-//   sender: Uuid,
-//   timestamps: Vec<u64>,
-// }
 
 pub struct SignalSpawner {
   send: mpsc::UnboundedSender<Cmd>,
@@ -109,8 +103,10 @@ impl SignalSpawner {
 
     spawn_local(async move {
       let max_messages_in_a_row = 25;
+      let max_commands_in_a_row = 3;
       let attachments_tmp_dir = attachments_tmp_dir().expect("this is dumb");
 
+      let mut counter;
       // should enable some gracefull shutdown
       while !output.is_closed() && !recv.is_closed() {
         // currently requests to the manager are processed in a distinct priority,
@@ -118,7 +114,12 @@ impl SignalSpawner {
 
         // contact requests
         while let Ok(contacts_output) = contact_requests.try_recv() {
-          _ = contacts_output.send(get_contacts(&manager).await);
+          Logger::log("getting contacts...");
+          let contacts = get_contacts(&manager).await;
+
+          Logger::log("got contacts");
+          _ = contacts_output.send(contacts);
+          Logger::log("sent contacts");
         }
 
         while let Ok(groups_output) = group_requests.try_recv() {
@@ -143,7 +144,7 @@ impl SignalSpawner {
 
         pin_mut!(messages);
 
-        let mut counter = 0;
+        counter = 0;
         while let Some(content) = messages.next().await {
           match &content {
             Received::QueueEmpty => {
@@ -167,8 +168,12 @@ impl SignalSpawner {
           }
         }
 
+        counter = 0;
         while let Ok(task) = recv.try_recv() {
           _ = run(&mut manager, task, output.clone()).await;
+          if counter > max_commands_in_a_row {
+            break;
+          }
         }
 
         // while let Ok(receipts) = recv.try_recv() {

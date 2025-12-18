@@ -17,10 +17,12 @@ use sqlx::{query, query_as, query_scalar, types::Json};
 
 use crate::{
   SqliteStore, SqliteStoreError,
-  data::{SqlContact, SqlGroup, SqlMessage, SqlProfile, SqlStickerPack},
+  data::{MinimalSqlContact, SqlContact, SqlGroup, SqlMessage, SqlProfile, SqlStickerPack},
 };
 
-type RawMessagesIter = Box<dyn DoubleEndedIterator<Item = Result<Content, SqliteStoreError>> + Send + Sync>;
+pub type RawMessagesIter = Box<dyn DoubleEndedIterator<Item = Result<Content, SqliteStoreError>> + Send + Sync>;
+pub type ContactsIter = Box<dyn Iterator<Item = Result<Contact, SqliteStoreError>> + Send + Sync>;
+pub type RawContactsIter = Box<dyn Iterator<Item = Result<Contact, SqliteStoreError>> + Send + Sync + 'static>;
 
 impl SqliteStore {
   pub async fn raw_messages(
@@ -62,17 +64,66 @@ impl SqliteStore {
 
     Ok(Box::new(rows.into_iter().map(TryInto::try_into)))
   }
+
+  pub async fn raw_contacts(&self) -> Result<Vec<SqlContact>, SqliteStoreError> {
+    let sql_contacts = query_as!(
+      SqlContact,
+      r#"SELECT
+                uuid AS "uuid: _",
+                phone_number,
+                name,
+                profile_key,
+                expire_timer,
+                expire_timer_version,
+                inbox_position,
+                avatar,
+                destination_aci AS "destination_aci: _",
+                identity_key,
+                is_verified
+            FROM contacts c
+            LEFT JOIN contacts_verification_state cv ON c.uuid = cv.destination_aci
+            ORDER BY c.inbox_position"#
+    )
+    .fetch_all(&self.db)
+    .await?;
+    Ok(sql_contacts)
+    // Ok(Box::new(sql_contacts.into_iter().map(TryInto::try_into)))
+  }
+
+  pub async fn fast_contacts(&self) -> Result<RawContactsIter, SqliteStoreError> {
+    let sql_contacts: Vec<MinimalSqlContact> = query_as!(
+      MinimalSqlContact,
+      r#"SELECT
+                uuid AS "uuid: _",
+                phone_number,
+                name,
+                profile_key,
+                expire_timer,
+                expire_timer_version,
+                inbox_position,
+                destination_aci AS "destination_aci: _",
+                identity_key,
+                is_verified
+            FROM contacts c
+            LEFT JOIN contacts_verification_state cv ON c.uuid = cv.destination_aci
+            ORDER BY c.inbox_position"#
+    )
+    .fetch_all(&self.db)
+    .await?;
+    Ok(Box::new(sql_contacts.into_iter().map(TryInto::try_into)))
+  }
 }
 
 impl ContentsStore for SqliteStore {
   type ContentsStoreError = SqliteStoreError;
 
-  type ContactsIter = Box<dyn Iterator<Item = Result<Contact, Self::ContentsStoreError>> + Send + Sync>;
+  type ContactsIter = ContactsIter;
 
   type GroupsIter =
     Box<dyn Iterator<Item = Result<(GroupMasterKeyBytes, Group), Self::ContentsStoreError>> + Send + Sync>;
 
-  type MessagesIter = Box<dyn Iterator<Item = Result<Content, Self::ContentsStoreError>> + Send + Sync>;
+  // type MessagesIter = Box<dyn Iterator<Item = Result<Content, Self::ContentsStoreError>> + Send + Sync>;
+  type MessagesIter = Box<dyn Iterator<Item = Result<Content, SqliteStoreError>> + Send + Sync>;
 
   type StickerPacksIter = Box<dyn Iterator<Item = Result<StickerPack, Self::ContentsStoreError>> + Send + Sync>;
 
@@ -146,9 +197,7 @@ impl ContentsStore for SqliteStore {
     let destination_service_id = destination.service_id_string();
 
     let proto_bytes = prost::Message::encode_to_vec(&body.into_proto());
-    let timestamp: i64 = timestamp
-      .try_into()
-      .map_err(|_| SqliteStoreError::InvalidFormat)?;
+    let timestamp: i64 = timestamp.try_into().map_err(|_| SqliteStoreError::InvalidFormat)?;
 
     query!(
       "INSERT OR REPLACE INTO thread_messages (
@@ -181,9 +230,7 @@ impl ContentsStore for SqliteStore {
   }
 
   async fn delete_message(&mut self, thread: &Thread, timestamp: u64) -> Result<bool, Self::ContentsStoreError> {
-    let timestamp: i64 = timestamp
-      .try_into()
-      .map_err(|_| SqliteStoreError::InvalidFormat)?;
+    let timestamp: i64 = timestamp.try_into().map_err(|_| SqliteStoreError::InvalidFormat)?;
     let (group_master_key, recipient_id) = thread.unzip();
     let res = query!(
       "DELETE FROM thread_messages
@@ -199,9 +246,7 @@ impl ContentsStore for SqliteStore {
   }
 
   async fn message(&self, thread: &Thread, timestamp: u64) -> Result<Option<Content>, Self::ContentsStoreError> {
-    let timestamp: i64 = timestamp
-      .try_into()
-      .map_err(|_| SqliteStoreError::InvalidFormat)?;
+    let timestamp: i64 = timestamp.try_into().map_err(|_| SqliteStoreError::InvalidFormat)?;
     let (group_master_key, recipient_id) = thread.unzip();
     let message = query_as!(
       SqlMessage,
@@ -560,13 +605,9 @@ impl ContentsStore for SqliteStore {
     _key: ProfileKey,
     profile: &AvatarBytes,
   ) -> Result<(), Self::ContentsStoreError> {
-    query!(
-      "UPDATE profile_avatars SET bytes = ? WHERE uuid = ?",
-      profile,
-      uuid,
-    )
-    .execute(&self.db)
-    .await?;
+    query!("UPDATE profile_avatars SET bytes = ? WHERE uuid = ?", profile, uuid,)
+      .execute(&self.db)
+      .await?;
     Ok(())
   }
 

@@ -1,4 +1,5 @@
 use chrono::Local;
+use std::fmt;
 // use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -51,14 +52,14 @@ impl Logger {
     writeln!(file, "=== START OF LOG === ").expect("kaboom");
   }
 
-  pub fn log(log: String) {
+  pub fn log(log: impl fmt::Display) {
     let mut file = OpenOptions::new()
       .append(true)
       .create(true)
       .open(FILE_NAME)
       .expect("kaboom");
     let date_time = Local::now();
-    let formatted = format!("{}", date_time.format("%H:%M:%S"));
+    let formatted = format!("{}", date_time.format("%T%.3f"));
     writeln!(file, "{}: {}", formatted, log).expect("kaboom");
   }
 }
