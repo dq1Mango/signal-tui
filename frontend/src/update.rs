@@ -33,6 +33,9 @@ pub enum Action {
 
   Scroll(isize),
   ScrollGroup(isize),
+  ScrollOptions(isize),
+
+  DoOption,
 
   SetMode(Mode),
   SetFocus(Focus),
@@ -115,6 +118,15 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
       KeyCode::Char('q') => Some(Action::Quit),
       _ => None,
     },
+
+    Mode::MessageOptions => match key.code {
+      KeyCode::Char('q') => Some(Action::Quit),
+      KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
+      KeyCode::Char('j') => Some(Action::ScrollOptions(1)),
+      KeyCode::Char('k') => Some(Action::ScrollOptions(-1)),
+      KeyCode::Enter => Some(Action::DoOption),
+      _ => None,
+    },
   }
 }
 
@@ -131,8 +143,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index =
-          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index = (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -264,11 +275,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     ContentBody::SynchronizeMessage(data) => {
       match data {
         SyncMessage {
-          sent:
-            Some(Sent {
-              message: Some(DataMessage { body: Some(body), .. }),
-              ..
-            }),
+          sent: Some(Sent {
+            message: Some(DataMessage { body: Some(body), .. }),
+            ..
+          }),
           // read: read,
           ..
         } => {

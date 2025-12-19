@@ -19,6 +19,7 @@ use std::{
 };
 
 use crossterm::{ExecutableCommand, cursor};
+use futures::SinkExt;
 use presage::{
   libsignal_service::{
     Profile,
@@ -40,6 +41,7 @@ use presage_store_sqlite::{OnNewIdentity, SqliteStore};
 use ratatui::{
   Frame,
   buffer::Buffer,
+  // crossterm::style::Color,
   layout::{Constraint, Direction, Flex, Layout, Position, Rect},
   style::{Color, Modifier, Style, Stylize},
   symbols::border,
@@ -101,6 +103,7 @@ pub enum Mode {
   Insert,
   Groups,
   Settings,
+  MessageOptions,
 }
 
 #[derive(Default, Debug, PartialEq)]
@@ -199,6 +202,12 @@ type Contacts = Arc<HashMap<Uuid, Profile>>;
 type Groups = Arc<HashMap<GroupMasterKeyBytes, Group>>;
 
 #[derive(Debug)]
+struct MessageOptions {
+  opened: bool,
+  index: usize,
+}
+
+#[derive(Debug)]
 pub struct Chat {
   thread: Thread,
   display: MyGroup,
@@ -207,6 +216,7 @@ pub struct Chat {
   messages: Vec<Message>,
   loaded_from: DateTime<Utc>,
   location: Location,
+  message_options: MessageOptions,
   text_input: TextInput,
 }
 
@@ -526,6 +536,30 @@ impl Metadata {
   }
 }
 
+impl MessageOptions {
+  pub fn default() -> Self {
+    Self { opened: false, index: 0 }
+  }
+
+  pub fn render(&self, message: &Message, area: Rect, buf: &mut Buffer) {
+    let area = center_div(area, Constraint::Length(16), Constraint::Length(7));
+
+    let options = ["Reply, Copy, Info"];
+
+    let block = Block::bordered().border_set(border::THICK);
+
+    let mut lines = Vec::with_capacity(options.len());
+
+    for option in options {
+      lines.push(Line::from(option));
+    }
+
+    lines[self.index] = lines[self.index].clone().style(Style::default().fg(Color::Magenta));
+
+    Paragraph::new(lines).block(block).render(area, buf);
+  }
+}
+
 impl Message {
   fn render(
     &mut self,
@@ -683,6 +717,7 @@ impl Chat {
       loaded_from: Utc::now(),
       text_input: TextInput::default(),
       location: Location::zero(),
+      message_options: MessageOptions::default(),
     }
   }
 
@@ -800,6 +835,8 @@ impl Chat {
 
       index -= 1;
     }
+
+    self.message_options.render(&self.messages[self.location.index], area, buf);
   }
 
   fn last_message(&self) -> Option<&Message> {
@@ -1589,7 +1626,7 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
   let mode = model.pinned_mode.clone();
 
   match model.pinned_mode {
-    Mode::Insert | Mode::Normal | Mode::Groups => {
+    Mode::Insert | Mode::Normal | Mode::Groups | Mode::MessageOptions => {
       // render_chat(
       //   model,
       //   contacts,
