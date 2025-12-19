@@ -1,6 +1,6 @@
+use futures::future::select;
 use presage::libsignal_service::zkgroup::GroupMasterKeyBytes;
 use presage::model::groups::Group;
-use presage::store::Thread;
 use presage_store_sqlite::SqliteStoreError;
 use tokio;
 // use tokio::runtime::Builder;
@@ -25,6 +25,7 @@ use crate::update::Action;
 
 use futures::StreamExt;
 use futures::pin_mut;
+use tokio::select;
 
 use crate::MyManager;
 use presage::Error;
@@ -101,89 +102,142 @@ impl SignalSpawner {
 
     let (profile_sender, mut profile_requests) = mpsc::unbounded_channel();
 
+    let (message_tx, mut message_rx) = mpsc::unbounded_channel();
+
     spawn_local(async move {
-      let max_messages_in_a_row = 25;
-      let max_commands_in_a_row = 3;
+      // initialize message stream
+      let messages = manager
+        .receive_messages()
+        .await
+        .expect("failed to initialize messages stream");
+
+      // handle messages in a different "thread" to convert stream to channel
+      spawn_local(async move {
+        pin_mut!(messages);
+
+        while let Some(message) = messages.next().await {
+          _ = message_tx.send(message);
+        }
+      });
+
+      // let max_messages_in_a_row = 1;
+      // let max_commands_in_a_row = 3;
       let attachments_tmp_dir = attachments_tmp_dir().expect("this is dumb");
 
-      let mut counter;
+      // let mut counter;
+
       // should enable some gracefull shutdown
       while !output.is_closed() && !recv.is_closed() {
         // currently requests to the manager are processed in a distinct priority,
         // which we can only wait and see if this was a bad choice
 
-        // contact requests
-        while let Ok(contacts_output) = contact_requests.try_recv() {
-          Logger::log("getting contacts...");
+        // // contact requests
+        // while let Ok(contacts_output) = contact_requests.try_recv() {
+        //   let contacts = get_contacts(&manager).await;
+        //
+        //   _ = contacts_output.send(contacts);
+        // }
+        //
+        // while let Ok(groups_output) = group_requests.try_recv() {
+        //   _ = groups_output.send(list_groups(&manager).await);
+        // }
+        //
+        // // profile requestss
+        // while let Ok(ProfileRequest {
+        //   output,
+        //   uuid,
+        //   profile_key,
+        // }) = profile_requests.try_recv()
+        // {
+        //    Logger::log("bout to actually do smthn");
+        //   _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
+        // }
+        //
+        // counter = 0;
+        // while let Ok(content) = message_rx.try_recv() {
+        //   Logger::log("mhhh some juicy content for you");
+        //   match &content {
+        //     Received::QueueEmpty => {
+        //       _ = output.send(Action::Receive(Received::QueueEmpty));
+        //       break;
+        //     }
+        //     Received::Contacts => {
+        //       //println!("got contacts synchronization"),
+        //     }
+        //     Received::Content(content) => {
+        //       // this better be fast lmao
+        //       process_incoming_message(&mut manager, attachments_tmp_dir.path(), false, &content).await
+        //     }
+        //   }
+        //
+        //   _ = output.send(Action::Receive(content));
+        //
+        //   counter += 1;
+        //   if counter > max_messages_in_a_row {
+        //     break;
+        //   }
+        // }
+        //
+        // counter = 0;
+        // while let Ok(task) = recv.try_recv() {
+        //   _ = run(&mut manager, task, output.clone()).await;
+        //   if counter > max_commands_in_a_row {
+        //     break;
+        //   }
+        // }
+
+        select! {
+          Some(contacts_output) = contact_requests.recv() => {
           let contacts = get_contacts(&manager).await;
 
-          Logger::log("got contacts");
           _ = contacts_output.send(contacts);
-          Logger::log("sent contacts");
-        }
-
-        while let Ok(groups_output) = group_requests.try_recv() {
-          _ = groups_output.send(list_groups(&manager).await);
-        }
-
-        // profile requestss
-        while let Ok(ProfileRequest {
-          output,
-          uuid,
-          profile_key,
-        }) = profile_requests.try_recv()
-        {
-          _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
-        }
-
-        // probably should not be re-making this stream each iteration but im sure its fine
-        let messages = manager
-          .receive_messages()
-          .await
-          .expect("failed to initialize messages stream");
-
-        pin_mut!(messages);
-
-        counter = 0;
-        while let Some(content) = messages.next().await {
-          match &content {
-            Received::QueueEmpty => {
-              _ = output.send(Action::Receive(Received::QueueEmpty));
-              break;
-            }
-            Received::Contacts => {
-              //println!("got contacts synchronization"),
-            }
-            Received::Content(content) => {
-              // this better be fast lmao
-              process_incoming_message(&mut manager, attachments_tmp_dir.path(), false, &content).await
-            }
           }
 
-          _ = output.send(Action::Receive(content));
+          Some(groups_output) = group_requests.recv() => {
+            _ = groups_output.send(list_groups(&manager).await);
+          }
 
-          counter += 1;
-          if counter > max_messages_in_a_row {
-            break;
+          // profile requestss
+          Some(profile_request) = profile_requests.recv() =>
+          {
+            let ProfileRequest {
+            output,
+            uuid,
+            profile_key,
+          } = profile_request;
+            Logger::log("bout to actually do smthn");
+            _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
+          }
+
+          Some(content) = message_rx.recv() => {
+            Logger::log("mhhh some juicy content for you");
+            match &content {
+              Received::QueueEmpty => {
+                _ = output.send(Action::Receive(Received::QueueEmpty));
+                // break;
+              }
+              Received::Contacts => {
+                //println!("got contacts synchronization"),
+              }
+              Received::Content(content) => {
+                // this better be fast lmao
+                process_incoming_message(&mut manager, attachments_tmp_dir.path(), false, &content).await
+              }
+            }
+
+            _ = output.send(Action::Receive(content));
+
+          }
+
+          Some(task) = recv.recv() => {
+            _ = run(&mut manager, task, output.clone()).await;
+            // if counter > max_commands_in_a_row {
+            //   break;
+            // }
           }
         }
-
-        counter = 0;
-        while let Ok(task) = recv.try_recv() {
-          _ = run(&mut manager, task, output.clone()).await;
-          if counter > max_commands_in_a_row {
-            break;
-          }
-        }
-
-        // while let Ok(receipts) = recv.try_recv() {
-        //   let store = manager.store();
-        //
-        //   for ts in receipts.
-        //
-        //   if let Some(message) = store.message(&thread, receipts)
-        // }
       }
+
       Logger::log("gracefully shutdown ... (hopefully)".to_string());
 
       // while let Some(new_task) = recv.recv().await {
@@ -250,6 +304,7 @@ impl SignalSpawner {
       profile_key,
     });
 
+    Logger::log("awaiting...");
     return rx.await.expect("kaboom");
   }
 

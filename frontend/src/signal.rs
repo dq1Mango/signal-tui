@@ -407,7 +407,11 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     return;
   };
 
-  async fn format_data_message(thread: &Thread, data_message: &DataMessage, manager: &MyManager) -> Option<String> {
+  async fn format_data_message(
+    thread: &Thread,
+    data_message: &DataMessage,
+    manager: &MyManager,
+  ) -> Option<String> {
     match data_message {
       DataMessage {
         quote: Some(Quote {
@@ -495,10 +499,11 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          edit_message: Some(EditMessage {
-            data_message: Some(data_message),
-            ..
-          }),
+          edit_message:
+            Some(EditMessage {
+              data_message: Some(data_message),
+              ..
+            }),
           ..
         }),
       ..
@@ -728,10 +733,12 @@ pub async fn retrieve_profile(
   } else {
     // println!("Retrieving profile for: {uuid:?} with profile_key");
   }
+  Logger::log("it was working before?...");
   let profile = match profile_key {
     None => manager.retrieve_profile().await?,
     Some(profile_key) => manager.retrieve_profile_by_uuid(uuid, profile_key).await?,
   };
+  Logger::log("i worked");
   // println!("{profile:#?}");
 
   Ok(profile)

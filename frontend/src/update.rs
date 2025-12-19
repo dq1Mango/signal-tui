@@ -220,7 +220,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
   match content.body {
     ContentBody::DataMessage(DataMessage { body: Some(body), .. }) => {
-      Logger::log(format!("DataMessage: {:#?}", body.clone()));
+      // Logger::log(format!("DataMessage: {:#?}", body.clone()));
       // some flex-tape on the thread derivation
       let mut mine = false;
       if let Thread::Contact(uuid) = thread {
@@ -244,10 +244,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       };
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!(
-          "Could not find a chat that matched the id: {:#?}",
-          thread
-        ));
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
         return None;
       };
 
@@ -273,10 +270,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       }
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!(
-          "Could not find a chat that matched the id: {:#?}",
-          thread
-        ));
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
         return None;
       };
 
@@ -325,10 +319,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
           });
 
           let Some(chat) = model.find_chat(&thread) else {
-            Logger::log(format!(
-              "Could not find a chat that matched the id: {:#?}",
-              thread
-            ));
+            Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
             return None;
           };
 
@@ -366,9 +357,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         for time in times {
           if let Some(message) = chat.find_message(time) {
             if let Metadata::MyMessage(MyMessage {
-              read_by,
-              delivered_to,
-              ..
+              read_by, delivered_to, ..
             }) = &mut message.metadata
             {
               let receipt = Receipt {
@@ -414,10 +403,13 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
           None
         }
       };
+
+      Logger::log("getting profile");
       let profile = match spawner.retrieve_profile(contact.uuid, profile_key).await {
         Ok(x) => x,
         Err(_) => continue,
       };
+      Logger::log("gyatt profile");
 
       let Some(contacts) = Arc::get_mut(&mut model.contacts) else {
         Logger::log("didnt get off so easy".to_string());
