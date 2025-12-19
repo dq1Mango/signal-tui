@@ -57,9 +57,7 @@ use qrcodegen::QrCodeEcc;
 // use crate::signal::*;
 use crate::signal::link_device;
 use crate::update::*;
-use crate::{
-  logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction,
-};
+use crate::{logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction};
 
 // there are three different models to represent all the parts of linking a device, loading
 // past messages, and normal operation, which is ugly dont get me wrong, but i feel like
@@ -611,10 +609,7 @@ impl Message {
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
           )
         } else if x.all_delivered(num_members) {
-          Span::styled(
-            [check_icon, check_icon].concat(),
-            Style::default().fg(Color::Gray),
-          )
+          Span::styled([check_icon, check_icon].concat(), Style::default().fg(Color::Gray))
         } else if x.sent() {
           Span::styled(check_icon, Style::default().fg(Color::Gray))
         } else {
@@ -1084,8 +1079,7 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
   let area = pad_with_border(color, area, buf);
 
-  let layout =
-    Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
+  let layout = Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
 
   // let image = StatefulImage::default().resize(Resize::Crop(None));
   // let mut pfp = match &self.pfp {
@@ -1392,12 +1386,7 @@ async fn real_main() -> anyhow::Result<()> {
           }
         }
 
-        update(
-          &mut model,
-          msg.expect("the laws of physics have collapsed"),
-          &spawner,
-        )
-        .await;
+        update(&mut model, msg.expect("the laws of physics have collapsed"), &spawner).await;
       }
 
       Some(Action::Quit) => {

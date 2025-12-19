@@ -136,7 +136,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
 
       if chat.location.index == 0 {
         Logger::log("loading messages".to_string());
-        chat.load_more_messages(spawner, TimeDelta::try_hours(2).unwrap());
+        chat.load_more_messages(spawner, TimeDelta::try_hours(12).unwrap());
       }
       //model.current_chat().location.requested_scroll = lines,
     }

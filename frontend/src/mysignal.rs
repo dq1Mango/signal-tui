@@ -1,4 +1,3 @@
-use futures::future::select;
 use presage::libsignal_service::zkgroup::GroupMasterKeyBytes;
 use presage::model::groups::Group;
 use presage_store_sqlite::SqliteStoreError;
@@ -30,8 +29,7 @@ use tokio::select;
 use crate::MyManager;
 use presage::Error;
 use presage::model::contacts::Contact;
-use presage::store::ContentsStore;
-use presage_store_sqlite::ContactsIter;
+// use presage::store::ContentsStore;
 // pub struct Task<Command, Data> {
 //   cmd: Cmd,
 //   output: oneshot::Sender<Box<T>>,
@@ -102,7 +100,7 @@ impl SignalSpawner {
 
     let (profile_sender, mut profile_requests) = mpsc::unbounded_channel();
 
-    let (message_tx, mut message_rx) = mpsc::unbounded_channel();
+    // let (message_tx, mut message_rx) = mpsc::unbounded_channel();
 
     spawn_local(async move {
       // initialize message stream
@@ -110,15 +108,15 @@ impl SignalSpawner {
         .receive_messages()
         .await
         .expect("failed to initialize messages stream");
+      pin_mut!(messages);
 
       // handle messages in a different "thread" to convert stream to channel
-      spawn_local(async move {
-        pin_mut!(messages);
-
-        while let Some(message) = messages.next().await {
-          _ = message_tx.send(message);
-        }
-      });
+      // spawn_local(async move {
+      //
+      //   while let Some(message) = messages.next().await {
+      //     _ = message_tx.send(message);
+      //   }
+      // });
 
       // let max_messages_in_a_row = 1;
       // let max_commands_in_a_row = 3;
@@ -128,63 +126,7 @@ impl SignalSpawner {
 
       // should enable some gracefull shutdown
       while !output.is_closed() && !recv.is_closed() {
-        // currently requests to the manager are processed in a distinct priority,
         // which we can only wait and see if this was a bad choice
-
-        // // contact requests
-        // while let Ok(contacts_output) = contact_requests.try_recv() {
-        //   let contacts = get_contacts(&manager).await;
-        //
-        //   _ = contacts_output.send(contacts);
-        // }
-        //
-        // while let Ok(groups_output) = group_requests.try_recv() {
-        //   _ = groups_output.send(list_groups(&manager).await);
-        // }
-        //
-        // // profile requestss
-        // while let Ok(ProfileRequest {
-        //   output,
-        //   uuid,
-        //   profile_key,
-        // }) = profile_requests.try_recv()
-        // {
-        //    Logger::log("bout to actually do smthn");
-        //   _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
-        // }
-        //
-        // counter = 0;
-        // while let Ok(content) = message_rx.try_recv() {
-        //   Logger::log("mhhh some juicy content for you");
-        //   match &content {
-        //     Received::QueueEmpty => {
-        //       _ = output.send(Action::Receive(Received::QueueEmpty));
-        //       break;
-        //     }
-        //     Received::Contacts => {
-        //       //println!("got contacts synchronization"),
-        //     }
-        //     Received::Content(content) => {
-        //       // this better be fast lmao
-        //       process_incoming_message(&mut manager, attachments_tmp_dir.path(), false, &content).await
-        //     }
-        //   }
-        //
-        //   _ = output.send(Action::Receive(content));
-        //
-        //   counter += 1;
-        //   if counter > max_messages_in_a_row {
-        //     break;
-        //   }
-        // }
-        //
-        // counter = 0;
-        // while let Ok(task) = recv.try_recv() {
-        //   _ = run(&mut manager, task, output.clone()).await;
-        //   if counter > max_commands_in_a_row {
-        //     break;
-        //   }
-        // }
 
         select! {
           Some(contacts_output) = contact_requests.recv() => {
@@ -209,7 +151,7 @@ impl SignalSpawner {
             _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
           }
 
-          Some(content) = message_rx.recv() => {
+          Some(content) = messages.next() => {
             Logger::log("mhhh some juicy content for you");
             match &content {
               Received::QueueEmpty => {
