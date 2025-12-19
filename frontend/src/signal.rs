@@ -1011,15 +1011,16 @@ pub async fn run(
         (_, Some(uuid)) => Thread::Contact(uuid),
         _ => unreachable!(),
       };
-      for msg in manager
+
+      let messages = manager
         .store()
         .raw_messages(&thread, from.unwrap_or(0)..)
         .await?
         .filter_map(Result::ok)
         .rev()
-      {
-        _ = output.send(Action::Receive(Received::Content(Box::new(msg))));
-      }
+        .collect();
+
+      _ = output.send(Action::ReceiveBatch(messages));
     }
     Cmd::Stats => {
       #[allow(unused)]

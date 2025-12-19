@@ -37,10 +37,11 @@ pub enum Action {
   SetMode(Mode),
   SetFocus(Focus),
 
-  Link(LinkingAction),
   // Message(Content),
   Receive(Received),
+  ReceiveBatch(Vec<Content>),
 
+  Link(LinkingAction),
   Quit,
 }
 /// Convert Event to Action
@@ -169,43 +170,17 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
       Received::QueueEmpty => {}
     },
 
+    Action::ReceiveBatch(received) => {
+      for message in received {
+        handle_message(model, message);
+      }
+    }
+
     _ => {}
   }
 
   None
 }
-
-// use
-//
-// fn slices_equal<T>(slice1: Vec<T>, slice2: Vec<T>) -> bool {
-//   if slice1.len() != slice1.len() {
-//     return false;
-//   }
-//
-//   slice1.iter().cmp()
-// }
-
-// pub fn insert_message(model: &mut Model, message: DataMessage, thread: Thread, timestamp: u64, mine: bool) {
-//   match thread {
-//     Thread::Contact(uuid) => {
-//       // Logger::log(format!(
-//       //   "thread: {}, with body: {}",
-//       //   uuid,
-//       //   message.body.clone().unwrap_or("useless message".to_string())
-//       // ));
-//       for chat in &mut model.chats {
-//         // maybe this rust thing isnt so bad (jk lol)
-//         if chat.participants.members == [uuid] {
-//           chat.insert_message(message, uuid, timestamp, mine);
-//           return;
-//         }
-//       }
-//
-//       Logger::log(format!("Could not find a chat that matched the id: {}", uuid));
-//     }
-//     _ => {}
-//   }
-// }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
   // Logger::log(format!("{:#?}", content.clone()));
