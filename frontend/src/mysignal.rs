@@ -147,12 +147,11 @@ impl SignalSpawner {
             uuid,
             profile_key,
           } = profile_request;
-            Logger::log("bout to actually do smthn");
             _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
           }
 
           Some(content) = messages.next() => {
-            Logger::log("mhhh some juicy content for you");
+            Logger::log("mhhhh some juicy content for you");
             match &content {
               Received::QueueEmpty => {
                 _ = output.send(Action::Receive(Received::QueueEmpty));

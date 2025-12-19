@@ -1340,19 +1340,7 @@ async fn real_main() -> anyhow::Result<()> {
   _ = update_contacts(&mut model, &spawner).await;
   _ = model.update_groups(&spawner).await;
 
-  // if !model.contacts.contains_key(&model.account.uuid) {
-  //   bail!("could not find self");
-  // }
-
-  // match model.find_self(&mut manager).await {
-  //   Ok(_) => {}
-  //   Err(_) => bail!("could not find self"),
-  // };
-
-  // let listener = SignalSpawner::new(action_tx.clone());
-
   // receive all past messages
-  // listener.spawn(Cmd::Receive { notifications: false });
 
   let mut loading_model = LoadState {
     raw_duration: None,

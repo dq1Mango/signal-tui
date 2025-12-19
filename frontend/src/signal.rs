@@ -731,15 +731,11 @@ pub async fn retrieve_profile(
       profile_key = Some(ProfileKey::create(profilek));
     }
   } else {
-    // println!("Retrieving profile for: {uuid:?} with profile_key");
   }
-  Logger::log("it was working before?...");
   let profile = match profile_key {
     None => manager.retrieve_profile().await?,
     Some(profile_key) => manager.retrieve_profile_by_uuid(uuid, profile_key).await?,
   };
-  Logger::log("i worked");
-  // println!("{profile:#?}");
 
   Ok(profile)
 }
