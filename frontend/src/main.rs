@@ -19,7 +19,6 @@ use std::{
 };
 
 use crossterm::{ExecutableCommand, cursor};
-use futures::SinkExt;
 use presage::{
   libsignal_service::{
     Profile,
