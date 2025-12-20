@@ -95,6 +95,7 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
 
       KeyCode::Char('i') => Some(Action::SetMode(Mode::Insert)),
       KeyCode::Char('h') => Some(Action::SetMode(Mode::Groups)),
+      KeyCode::Char('o') => Some(Action::SetMode(Mode::MessageOptions)),
 
       KeyCode::Char('S') => Some(Action::SetFocus(Focus::Settings)),
 
@@ -143,7 +144,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index = (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index =
+          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -156,6 +158,18 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::ScrollGroup(direction) => {
       model.chat_index = (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
       //.clamp(0, model.chats.len() as isize - 1) as usize
+    }
+
+    Action::ScrollOptions(scroll) => {
+      // this one pissed me off a little cuz u should be able to do it all in one line
+      let index = model.current_chat().location.index;
+      let length = match model.current_chat().messages[index].metadata {
+        Metadata::MyMessage(_) => 5,
+        Metadata::NotMyMessage(_) => 3,
+      };
+
+      let options = &mut model.current_chat().message_options;
+      options.index = (options.index as isize + scroll).rem_euclid(length) as usize;
     }
 
     Action::SetMode(new_mode) => {
@@ -275,10 +289,11 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     ContentBody::SynchronizeMessage(data) => {
       match data {
         SyncMessage {
-          sent: Some(Sent {
-            message: Some(DataMessage { body: Some(body), .. }),
-            ..
-          }),
+          sent:
+            Some(Sent {
+              message: Some(DataMessage { body: Some(body), .. }),
+              ..
+            }),
           // read: read,
           ..
         } => {
