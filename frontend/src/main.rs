@@ -537,6 +537,15 @@ impl Metadata {
   }
 }
 
+fn full_line<'a>(string: String, width: usize) -> Line<'a> {
+  let mut padding = String::with_capacity(width);
+  for _ in 0..=(width - string.len()) {
+    padding += " ";
+  }
+
+  Line::from(string + &padding)
+}
+
 impl MessageOptions {
   pub fn default() -> Self {
     Self {
@@ -550,35 +559,40 @@ impl MessageOptions {
     //   return;
     // }
 
-    let area = center_div(area, Constraint::Length(16), Constraint::Length(7));
-
     let options = match message.metadata {
-      Metadata::NotMyMessage(_) => vec!["Reply", "Copy", "Info"],
-      Metadata::MyMessage(_) => vec!["Reply", "Edit", "Copy", "Info", "Delete"],
+      Metadata::NotMyMessage(_) => vec!["  Reply", "  Copy", "  Info"],
+      Metadata::MyMessage(_) => vec![" Reply", " Edit", " Copy", " Info", " Delete"],
     };
-
     let options: Vec<Vec<char>> = options.iter().map(|s| s.chars().collect()).collect();
 
-    let block = Block::bordered().border_set(border::THICK);
+    let length = options.len();
+
+    let area = center_div(area, Constraint::Length(16), Constraint::Length(length as u16 + 2));
 
     let mut lines = Vec::with_capacity(options.len());
 
+    // this was so annoying oh man just let me index into a &str *I MADE* grrrrrr
     for (index, option) in options.into_iter().enumerate() {
-      let mut line = Line::from(vec![
-        Span::from(option[0].to_string()).style(Style::default().bold()),
-        Span::from((&option[1..]).iter().collect::<String>()),
-      ]);
+      // let mut line = Line::from(vec![
+      //   Span::from(option[0].to_string()).style(Style::default().bold()),
+      //   Span::from((&option[1..]).iter().collect::<String>()),
+      // ]);
+      let mut line = Line::from(full_line(option.into_iter().collect::<String>(), 14));
 
       if index == self.index {
-        line = line.style(Style::default().fg(Color::Magenta));
+        line = line.style(Style::default().bg(Color::Magenta).fg(Color::Black));
       }
 
       lines.push(line);
     }
 
     // lines[self.index].style(Style::default().fg(Color::Magenta));
+    let block = Block::bordered().border_set(border::THICK);
 
-    Paragraph::new(lines).block(block).render(area, buf);
+    Paragraph::new(lines)
+      .block(block)
+      .style(Style::default().bg(Color::Black))
+      .render(area, buf);
   }
 }
 
