@@ -18,7 +18,6 @@ use std::{
   vec,
 };
 
-use color_eyre::owo_colors::OwoColorize;
 use crossterm::{ExecutableCommand, cursor};
 use futures::SinkExt;
 use presage::{
@@ -206,6 +205,9 @@ type Groups = Arc<HashMap<GroupMasterKeyBytes, Group>>;
 struct MessageOptions {
   opened: bool,
   index: usize,
+  mine: bool,
+  // my_actions: Vec<Action>,
+  // not_my_actions: Vec<Action>,
 }
 
 #[derive(Debug)]
@@ -529,17 +531,17 @@ impl Metadata {
     })
   }
 
-  fn new_not_mine(timestamp: DateTime<Utc>, sender: Uuid) -> Self {
-    Self::NotMyMessage(NotMyMessage {
-      sent: timestamp,
-      sender: sender,
-    })
-  }
+  // fn new_not_mine(timestamp: DateTime<Utc>, sender: Uuid) -> Self {
+  //   Self::NotMyMessage(NotMyMessage {
+  //     sent: timestamp,
+  //     sender: sender,
+  //   })
+  // }
 }
 
 fn full_line<'a>(string: String, width: usize) -> Line<'a> {
   let mut padding = String::with_capacity(width);
-  for _ in 0..=(width - string.len()) {
+  for _ in 0..(width - string.len()) {
     padding += " ";
   }
 
@@ -550,7 +552,36 @@ impl MessageOptions {
   pub fn default() -> Self {
     Self {
       opened: false,
+      // neither of these fields rly mean anything if the box isnt open
       index: 0,
+      mine: false,
+    }
+  }
+
+  pub fn open(&mut self, mine: bool) {
+    self.opened = true;
+    self.index = 0;
+    self.mine = mine;
+  }
+
+  // great method wow!
+  pub fn close(&mut self) {
+    self.opened = false;
+  }
+
+  pub fn select(&mut self) -> Action {
+    let my_actions = vec![
+      MessageOption::Reply,
+      MessageOption::Edit,
+      MessageOption::Copy,
+      MessageOption::Info,
+      MessageOption::Delete,
+    ];
+    let not_my_actions = vec![MessageOption::Reply, MessageOption::Copy, MessageOption::Info];
+    if self.mine {
+      Action::DoOption(my_actions[self.index])
+    } else {
+      Action::DoOption(not_my_actions[self.index])
     }
   }
 
@@ -558,26 +589,31 @@ impl MessageOptions {
     // if !self.opened {
     //   return;
     // }
+    let fixed_width = 16;
 
     let options = match message.metadata {
-      Metadata::NotMyMessage(_) => vec!["  Reply", "  Copy", "  Info"],
-      Metadata::MyMessage(_) => vec![" Reply", " Edit", " Copy", " Info", " Delete"],
+      Metadata::NotMyMessage(_) => vec!["  Reply", "  Copy", "  Info"],
+      Metadata::MyMessage(_) => vec!["  Reply", "  Edit", "  Copy", "  Info", "  Delete"],
     };
     let options: Vec<Vec<char>> = options.iter().map(|s| s.chars().collect()).collect();
 
     let length = options.len();
 
-    let area = center_div(area, Constraint::Length(16), Constraint::Length(length as u16 + 2));
+    let area = center_div(
+      area,
+      Constraint::Length(fixed_width),
+      Constraint::Length(length as u16 + 2),
+    );
 
     let mut lines = Vec::with_capacity(options.len());
 
-    // this was so annoying oh man just let me index into a &str *I MADE* grrrrrr
     for (index, option) in options.into_iter().enumerate() {
+      // this was so annoying oh man just let me index into a &str *I MADE* grrrrrr
       // let mut line = Line::from(vec![
       //   Span::from(option[0].to_string()).style(Style::default().bold()),
       //   Span::from((&option[1..]).iter().collect::<String>()),
       // ]);
-      let mut line = Line::from(full_line(option.into_iter().collect::<String>(), 14));
+      let mut line = Line::from(full_line(option.into_iter().collect::<String>(), fixed_width as usize));
 
       if index == self.index {
         line = line.style(Style::default().bg(Color::Magenta).fg(Color::Black));
@@ -672,6 +708,14 @@ impl Message {
 
     Paragraph::new(lines).block(block).render(my_area, buf)
     // .wrap(Wrap { trim: true })
+  }
+
+  fn is_mine(&self) -> bool {
+    if let Metadata::MyMessage(_) = self.metadata {
+      true
+    } else {
+      false
+    }
   }
 
   // i thought i knew how lifetimes worked
@@ -897,6 +941,14 @@ impl Chat {
     }
   }
 
+  fn selected_message(&self) -> Option<&Message> {
+    if self.messages.len() > 0 {
+      Some(&self.messages[self.location.index])
+    } else {
+      None
+    }
+  }
+
   fn insert_message(&mut self, body: &String, meta: Metadata) {
     // let new_timestamp = message.timestamp();
 
@@ -956,11 +1008,15 @@ impl Chat {
       return;
     }
 
-    // little bit of a goofy statement to not underflow and usize
-    if self.messages.len() - 1 == self.location.index + 1 || i <= self.location.index {
-      // Oh noooooo, i have violated the ELM design patterns ....
-      // however we will go on with our days ... ?
-      self.location.index += 1;
+    // mhhhh yes what a wonderful state machine i have created
+    // i am sure this will break in a total of *ZERO* ways
+    if !self.message_options.opened {
+      // little bit of a goofy statement to not underflow a usize
+      if self.messages.len() - 1 == self.location.index + 1 || i <= self.location.index {
+        // Oh noooooo, i have violated the ELM design patterns ....
+        // however we will go on with our days ... ?
+        self.location.index += 1;
+      }
     }
   }
 

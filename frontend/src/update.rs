@@ -19,13 +19,14 @@ use std::sync::Arc;
 use crate::logger::Logger;
 use crate::*;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum LinkingAction {
   Url(Url),
   Success,
   Fail,
 }
 
+#[derive(Debug)]
 pub enum Action {
   Type(char),
   Backspace,
@@ -35,7 +36,8 @@ pub enum Action {
   ScrollGroup(isize),
   ScrollOptions(isize),
 
-  DoOption,
+  PickOption,
+  DoOption(MessageOption),
 
   SetMode(Mode),
   SetFocus(Focus),
@@ -46,6 +48,15 @@ pub enum Action {
 
   Link(LinkingAction),
   Quit,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum MessageOption {
+  Reply,
+  Edit,
+  Copy,
+  Info,
+  Delete,
 }
 /// Convert Event to Action
 ///
@@ -125,7 +136,7 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
       KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
       KeyCode::Char('j') => Some(Action::ScrollOptions(1)),
       KeyCode::Char('k') => Some(Action::ScrollOptions(-1)),
-      KeyCode::Enter => Some(Action::DoOption),
+      KeyCode::Enter => Some(Action::PickOption),
       _ => None,
     },
   }
@@ -160,10 +171,10 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
       //.clamp(0, model.chats.len() as isize - 1) as usize
     }
 
+    // this one pissed me off a little cuz u should be able to do it all in one line
     Action::ScrollOptions(scroll) => {
-      // this one pissed me off a little cuz u should be able to do it all in one line
-      let index = model.current_chat().location.index;
-      let length = match model.current_chat().messages[index].metadata {
+      // let index = model.current_chat().location.index;
+      let length = match model.current_chat().selected_message()?.metadata {
         Metadata::MyMessage(_) => 5,
         Metadata::NotMyMessage(_) => 3,
       };
@@ -175,6 +186,14 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::SetMode(new_mode) => {
       *model.mode.lock().unwrap() = new_mode.clone();
       model.pinned_mode = new_mode;
+
+      // alright this is just getting the littlest bit of ugly now
+      if model.pinned_mode == Mode::MessageOptions {
+        let mine = model.current_chat().selected_message()?.is_mine();
+        model.current_chat().message_options.open(mine);
+      } else {
+        model.current_chat().message_options.close();
+      }
     }
 
     // Action::SetFocus(new_focus) => model.focus = new_focus,
@@ -200,6 +219,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
         handle_message(model, message);
       }
     }
+
+    Action::PickOption => return Some(model.current_chat().message_options.select()),
 
     _ => {}
   }
