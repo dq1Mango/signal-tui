@@ -60,6 +60,8 @@ use tracing::warn;
 use tracing::{error, info};
 use url::Url;
 
+use crate::Message;
+use crate::Model;
 use crate::MyManager;
 use crate::Profile;
 use crate::logger::Logger;
@@ -200,6 +202,7 @@ pub enum Cmd {
   },
   SendToThread {
     message: String,
+    quote: Option<Quote>,
     thread: Thread,
     timestamp: u64,
     attachment_filepath: Vec<PathBuf>,
@@ -275,11 +278,20 @@ fn recipient_from_thread(thread: Thread) -> Recipient {
   }
 }
 
+pub fn get_quote(quoted: &Message) -> Quote {
+  Quote {
+    id: Some(quoted.ts()),
+    text: Some(quoted.body.body.clone()),
+    ..Default::default()
+  }
+}
+
 async fn send(
   manager: &mut MyManager,
   recipient: Recipient,
   timestamp: u64,
   msg: impl Into<ContentBody>,
+  mut quote: Option<Quote>,
 ) -> anyhow::Result<()> {
   let attachments_tmp_dir = attachments_tmp_dir()?;
 
@@ -293,27 +305,12 @@ async fn send(
   let mut content_body = msg.into();
   if let ContentBody::DataMessage(d) = &mut content_body {
     d.timestamp = Some(timestamp);
+    if let Some(ref mut q) = quote {
+      q.author_aci = Some(manager.registration_data().service_ids.aci.to_string());
+      Logger::log(format!("wow look at this quote: {:#?}", quote.clone()));
+      d.quote = quote;
+    }
   }
-
-  // maybe deleting this works?
-  // let messages = manager
-  //   .receive_messages()
-  //   .await
-  //   .context("failed to initialize messages stream")?;
-  // pin_mut!(messages);
-
-  // println!("synchronizing messages since last time");
-
-  // --- probably dont need to do this cuz we r constantly receiving messages
-  // while let Some(content) = messages.next().await {
-  //   match content {
-  //     Received::QueueEmpty => break,
-  //     Received::Contacts => continue,
-  //     Received::Content(content) => process_incoming_message(manager, attachments_tmp_dir.path(), false, &content).await,
-  //   }
-  // }
-
-  // println!("done synchronizing, sending your message now!");
 
   match recipient {
     Recipient::Contact(uuid) => {
@@ -407,16 +404,11 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     return;
   };
 
-  async fn format_data_message(
-    thread: &Thread,
-    data_message: &DataMessage,
-    manager: &MyManager,
-  ) -> Option<String> {
+  async fn format_data_message(thread: &Thread, data_message: &DataMessage, manager: &MyManager) -> Option<String> {
     match data_message {
       DataMessage {
         quote: Some(Quote {
-          text: Some(quoted_text),
-          ..
+          text: Some(quoted_text), ..
         }),
         body: Some(body),
         ..
@@ -499,11 +491,10 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          edit_message:
-            Some(EditMessage {
-              data_message: Some(data_message),
-              ..
-            }),
+          edit_message: Some(EditMessage {
+            data_message: Some(data_message),
+            ..
+          }),
           ..
         }),
       ..
@@ -557,11 +548,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 }
 
-async fn receive(
-  manager: &mut MyManager,
-  notifications: bool,
-  output: mpsc::UnboundedSender<Action>,
-) -> anyhow::Result<()> {
+async fn receive(manager: &mut MyManager, notifications: bool, output: mpsc::UnboundedSender<Action>) -> anyhow::Result<()> {
   let attachments_tmp_dir = attachments_tmp_dir()?;
   let messages = manager
     .receive_messages()
@@ -765,11 +752,7 @@ pub async fn retrieve_profile(
 use crate::update::Action;
 use crate::update::LinkingAction;
 
-pub async fn run(
-  manager: &mut MyManager,
-  subcommand: Cmd,
-  output: mpsc::UnboundedSender<Action>,
-) -> anyhow::Result<()> {
+pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::UnboundedSender<Action>) -> anyhow::Result<()> {
   match subcommand {
     Cmd::Register {
       servers,
@@ -817,11 +800,7 @@ pub async fn run(
 
       for device in devices {
         let device_name = device.name.unwrap_or_else(|| "(no device name)".to_string());
-        let current_marker = if device.id == current_device_id {
-          "(this device)"
-        } else {
-          ""
-        };
+        let current_marker = if device.id == current_device_id { "(this device)" } else { "" };
 
         println!(
           "- Device {} {}\n  Name: {}\n  Created: {}\n  Last seen: {}",
@@ -845,7 +824,7 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, Recipient::Contact(uuid), timestamp, data_message).await?;
+      send(manager, Recipient::Contact(uuid), timestamp, data_message, None).await?;
     }
     Cmd::SendToGroup {
       message,
@@ -865,10 +844,11 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, Recipient::Group(master_key), timestamp, data_message).await?;
+      send(manager, Recipient::Group(master_key), timestamp, data_message, None).await?;
     }
     Cmd::SendToThread {
       message,
+      quote,
       thread,
       timestamp,
       attachment_filepath,
@@ -891,7 +871,7 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, recipient_from_thread(thread), timestamp, data_message).await?;
+      send(manager, recipient_from_thread(thread), timestamp, data_message, quote).await?;
     }
     Cmd::RetrieveProfile { uuid, profile_key } => {}
     Cmd::ListGroups => {
@@ -1092,11 +1072,7 @@ async fn upload_attachments(
     })
     .collect();
 
-  let attachments: Result<Vec<_>, _> = manager
-    .upload_attachments(attachment_specs)
-    .await?
-    .into_iter()
-    .collect();
+  let attachments: Result<Vec<_>, _> = manager.upload_attachments(attachment_specs).await?.into_iter().collect();
 
   let attachments = attachments?;
   Ok(attachments)

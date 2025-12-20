@@ -56,7 +56,7 @@ use url::Url;
 use qrcodegen::QrCode;
 use qrcodegen::QrCodeEcc;
 // use crate::signal::*;
-use crate::signal::link_device;
+use crate::signal::{get_quote, link_device};
 use crate::update::*;
 use crate::{logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction};
 
@@ -1139,10 +1139,16 @@ impl Chat {
 
     let ts = Utc::now();
 
+    let quote = match self.text_input.mode {
+      TextInputMode::Replying => Some(get_quote(self.find_message(self.message_options.timestamp).unwrap())),
+      _ => None,
+    };
+
     // dm chat:
     spawner.spawn(Cmd::SendToThread {
       thread: self.thread.clone(),
       message: data,
+      quote: quote,
       timestamp: ts.timestamp_millis() as u64,
       attachment_filepath: Vec::new().into(),
     });

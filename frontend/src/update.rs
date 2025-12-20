@@ -258,7 +258,7 @@ pub fn handle_option(model: &mut Model, _spawner: &SignalSpawner, option: Messag
 }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
-  Logger::log(format!("{:#?}", content.clone()));
+  Logger::log(format!("DataMessage: {:#?}", content.clone()));
 
   let ts = content.timestamp();
   let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
