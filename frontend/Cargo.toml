@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 chrono = "0.4.42"
 color-eyre = "0.6.5"
-crossterm = {version = "0.29.0", features = ["event-stream"]}
+crossterm = {version = "0.29.0", features = ["event-stream", "osc52"]}
 futures = "0.3.31"
 hex = "0.4.3"
 image = "0.25.8"

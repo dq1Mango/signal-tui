@@ -1,7 +1,10 @@
+use crossterm::execute;
 use presage::proto::sync_message::Sent;
 use tokio::sync::mpsc::UnboundedSender;
 
 use chrono::TimeDelta;
+
+use crossterm::clipboard::CopyToClipboard;
 use crossterm::event::{self, Event, EventStream, KeyCode};
 
 use futures::{StreamExt, future::FutureExt};
@@ -221,6 +224,24 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     }
 
     Action::PickOption => return Some(model.current_chat().message_options.select()),
+    Action::DoOption(option) => {
+      match option {
+        MessageOption::Copy => {
+          let result = execute!(
+            std::io::stdout(),
+            CopyToClipboard::to_clipboard_from(
+              &model.current_chat().selected_message().expect("kaboom").body.body
+            )
+          );
+
+          if let Err(error) = result {
+            Logger::log(error)
+          }
+        }
+        _ => {}
+      }
+      model.current_chat().message_options.close();
+    }
 
     _ => {}
   }
