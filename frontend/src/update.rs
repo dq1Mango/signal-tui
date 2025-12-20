@@ -158,8 +158,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index =
-          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index = (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -192,20 +191,16 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
 
       // alright this is just getting the littlest bit of ugly now
       if model.pinned_mode == Mode::MessageOptions {
-        let mine = model.current_chat().selected_message()?.is_mine();
-        model.current_chat().message_options.open(mine);
+        let selected_message = model.current_chat().selected_message()?;
+        let mine = selected_message.is_mine();
+        let ts = selected_message.ts();
+        model.current_chat().message_options.open(ts, mine);
       } else {
         model.current_chat().message_options.close();
       }
     }
 
     // Action::SetFocus(new_focus) => model.focus = new_focus,
-    Action::Quit => {
-      // You can handle cleanup and exit here
-      // -- im ok thanks tho
-      model.running_state = RunningState::OhShit;
-    }
-
     Action::Receive(received) => match received {
       Received::Content(content) => {
         return handle_message(model, *content);
@@ -224,29 +219,42 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     }
 
     Action::PickOption => return Some(model.current_chat().message_options.select()),
-    Action::DoOption(option) => {
-      match option {
-        MessageOption::Copy => {
-          let result = execute!(
-            std::io::stdout(),
-            CopyToClipboard::to_clipboard_from(
-              &model.current_chat().selected_message().expect("kaboom").body.body
-            )
-          );
+    Action::DoOption(option) => return handle_option(model, spawner, option),
 
-          if let Err(error) = result {
-            Logger::log(error)
-          }
-        }
-        _ => {}
-      }
-      model.current_chat().message_options.close();
+    Action::Quit => {
+      // You can handle cleanup and exit here
+      // -- im ok thanks tho
+      model.running_state = RunningState::OhShit;
     }
 
     _ => {}
   }
 
   None
+}
+
+pub fn handle_option(model: &mut Model, _spawner: &SignalSpawner, option: MessageOption) -> Option<Action> {
+  model.current_chat().message_options.close();
+
+  match option {
+    MessageOption::Copy => {
+      let result = execute!(
+        std::io::stdout(),
+        CopyToClipboard::to_clipboard_from(&model.current_chat().selected_message().expect("kaboom").body.body)
+      );
+
+      if let Err(error) = result {
+        Logger::log(error)
+      }
+
+      None
+    }
+    MessageOption::Reply => {
+      model.current_chat().text_input.mode = TextInputMode::Replying;
+      Some(Action::SetMode(Mode::Insert))
+    }
+    _ => None,
+  }
 }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
@@ -331,11 +339,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     ContentBody::SynchronizeMessage(data) => {
       match data {
         SyncMessage {
-          sent:
-            Some(Sent {
-              message: Some(DataMessage { body: Some(body), .. }),
-              ..
-            }),
+          sent: Some(Sent {
+            message: Some(DataMessage { body: Some(body), .. }),
+            ..
+          }),
           // read: read,
           ..
         } => {
@@ -446,12 +453,10 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
         }
       };
 
-      Logger::log("getting profile");
       let profile = match spawner.retrieve_profile(contact.uuid, profile_key).await {
         Ok(x) => x,
         Err(_) => continue,
       };
-      Logger::log("gyatt profile");
 
       let Some(contacts) = Arc::get_mut(&mut model.contacts) else {
         Logger::log("didnt get off so easy".to_string());
@@ -460,7 +465,6 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
 
       contacts.insert(contact.uuid, profile.clone());
 
-      Logger::log("making new dm chat".to_string());
       model.new_dm_chat(profile, contact.uuid);
     }
   }

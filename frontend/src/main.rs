@@ -122,30 +122,31 @@ pub enum Focus {
 // }
 
 #[derive(Debug)]
-pub struct NotMyMessage {
-  sender: Uuid,
-  sent: DateTime<Utc>,
-}
-
 pub enum ReceiptType {
   Delivered,
   Read,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub struct NotMyMessage {
+  sender: Uuid,
+  sent: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
 pub struct MyMessage {
   sent: DateTime<Utc>,
   delivered_to: Vec<Receipt>,
   read_by: Vec<Receipt>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Metadata {
   MyMessage(MyMessage),
   NotMyMessage(NotMyMessage),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
   body: MultiLineString,
   metadata: Metadata,
@@ -205,6 +206,7 @@ type Groups = Arc<HashMap<GroupMasterKeyBytes, Group>>;
 struct MessageOptions {
   opened: bool,
   index: usize,
+  timestamp: u64,
   mine: bool,
   // my_actions: Vec<Action>,
   // not_my_actions: Vec<Action>,
@@ -223,11 +225,20 @@ pub struct Chat {
   text_input: TextInput,
 }
 
+#[derive(Debug, Default, PartialEq)]
+pub enum TextInputMode {
+  #[default]
+  Normal,
+  Replying,
+  Editing,
+}
+
 #[derive(Debug, Default)]
 pub struct TextInput {
   body: MultiLineString,
   cursor_index: u16,
   cursor_position: Position,
+  mode: TextInputMode,
 }
 
 pub struct Settings {
@@ -452,19 +463,42 @@ impl Model {
 }
 
 impl TextInput {
-  fn render(&mut self, active: bool, area: Rect, buf: &mut Buffer) {
+  fn render(&mut self, active: bool, message: Option<&Message>, contacts: &Contacts, area: Rect, buf: &mut Buffer) {
     let color = if active { Color::Magenta } else { Color::Reset };
 
-    let block = Block::bordered()
+    let mut block = Block::bordered()
       .border_set(border::THICK)
       .border_style(Style::default().fg(color));
 
+    if self.mode == TextInputMode::Editing {
+      block = block.title(Line::from(" Edit Message").left_aligned());
+    }
+
     // minus 3 b/c you cant have the cursor on the border and i cant be bothered to add another
     // edge case
-    let vec_lines = self.body.as_trimmed_lines(area.width - 3);
-    // logger.log(format!("this is the first line: {}", self.cursor_index));
     let mut lines: Vec<Line> = Vec::new();
-    for yap in vec_lines {
+
+    if let Some(msg) = message {
+      lines.push(Line::from(vec![
+        Span::from(match msg.metadata {
+          Metadata::MyMessage(_) => "You",
+          Metadata::NotMyMessage(NotMyMessage { sender, .. }) => {
+            if let Some(profile_name) = &contacts[&sender].name {
+              &profile_name.given_name
+            } else {
+              "You found a bug!"
+            }
+          }
+        }),
+        Span::from(":"),
+      ]));
+
+      lines.push(Line::from(msg.body.body.shrink(area.width - 2)));
+      lines.push(Line::from("-".repeat(area.width as usize - 2)));
+    }
+
+    // logger.log(format!("this is the first line: {}", self.cursor_index));
+    for yap in self.body.as_trimmed_lines(area.width - 3) {
       lines.push(Line::from(yap));
     }
 
@@ -552,16 +586,18 @@ impl MessageOptions {
   pub fn default() -> Self {
     Self {
       opened: false,
-      // neither of these fields rly mean anything if the box isnt open
+      // none of these fields rly mean anything if the box isnt open
       index: 0,
       mine: false,
+      timestamp: 0,
     }
   }
 
-  pub fn open(&mut self, mine: bool) {
+  pub fn open(&mut self, ts: u64, mine: bool) {
     self.opened = true;
     self.index = 0;
     self.mine = mine;
+    self.timestamp = ts;
   }
 
   // great method wow!
@@ -599,11 +635,7 @@ impl MessageOptions {
 
     let length = options.len();
 
-    let area = center_div(
-      area,
-      Constraint::Length(fixed_width),
-      Constraint::Length(length as u16 + 2),
-    );
+    let area = center_div(area, Constraint::Length(fixed_width), Constraint::Length(length as u16 + 2));
 
     let mut lines = Vec::with_capacity(options.len());
 
@@ -718,6 +750,18 @@ impl Message {
     }
   }
 
+  // really considering ditching chrono
+  fn timestamp(&self) -> DateTime<Utc> {
+    match &self.metadata {
+      Metadata::NotMyMessage(x) => x.sent,
+      Metadata::MyMessage(x) => x.sent,
+    }
+  }
+
+  fn ts(&self) -> u64 {
+    self.timestamp().timestamp_millis() as u64
+  }
+
   // i thought i knew how lifetimes worked
   fn format_delivered_status<'explicit>(&self, num_members: usize) -> Span<'explicit> {
     let check_icon = " ";
@@ -742,11 +786,7 @@ impl Message {
   }
 
   fn format_duration(&self) -> String {
-    let time = match &self.metadata {
-      Metadata::NotMyMessage(x) => x.sent,
-      Metadata::MyMessage(x) => x.sent,
-    };
-
+    let time = self.timestamp();
     let duration = Utc::now().signed_duration_since(time);
 
     if duration.num_minutes() < 1 {
@@ -787,12 +827,10 @@ fn _format_vec(vec: &Vec<String>) -> String {
 }
 
 impl Chat {
-  // TODO: start here and make the group descriptions reflect that of the contact
   fn new(display: MyGroup, thread: Thread) -> Self {
     Chat {
       thread: thread,
       display,
-
       messages: Vec::new(),
       loaded_from: Utc::now(),
       text_input: TextInput::default(),
@@ -806,9 +844,24 @@ impl Chat {
     // Logger::log("this is our input: ".to_string());
     // Logger::log(format_vec(self.text_input.body.as_lines(area.width - 2)));
 
-    let layout = Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + 2)]).split(area);
+    let mut reply_lines = 0;
 
-    self.text_input.render(mode == Mode::Insert, layout[1], buf);
+    let reply_message = if self.text_input.mode == TextInputMode::Replying {
+      reply_lines = 3;
+      // rly painful clone here but whatever
+      match self.find_message(self.message_options.timestamp) {
+        Some(msg) => Some(&msg.clone()),
+        None => None,
+      }
+    } else {
+      None
+    };
+
+    let layout = Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
+
+    self
+      .text_input
+      .render(mode == Mode::Insert, reply_message, &contacts, layout[1], buf);
 
     // kind of a sketchy shadow here but the layout[1] is used like once
     let area = layout[0];
@@ -917,28 +970,18 @@ impl Chat {
     }
 
     if mode == Mode::MessageOptions {
-      self
-        .message_options
-        .render(&self.messages[self.location.index], area, buf);
+      self.message_options.render(&self.messages[self.location.index], area, buf);
     }
   }
 
   fn last_message(&self) -> Option<&Message> {
     let last = self.messages.len();
-    if last <= 0 {
-      None
-    } else {
-      Some(&self.messages[last - 1])
-    }
+    if last <= 0 { None } else { Some(&self.messages[last - 1]) }
   }
 
   fn last_message_mut(&mut self) -> Option<&mut Message> {
     let last = self.messages.len();
-    if last <= 0 {
-      None
-    } else {
-      Some(&mut self.messages[last - 1])
-    }
+    if last <= 0 { None } else { Some(&mut self.messages[last - 1]) }
   }
 
   fn selected_message(&self) -> Option<&Message> {
@@ -1032,14 +1075,10 @@ impl Chat {
       // Logger::log(format!("old timestamp: {} -- new timestamp: {}", ts, timestamp));
       i -= 1;
 
-      let ts = match &self.messages[i].metadata {
-        Metadata::MyMessage(data) => data.sent.timestamp_millis() as u64,
-        Metadata::NotMyMessage(data) => data.sent.timestamp_millis() as u64,
-      };
-
+      let ts = self.messages[i].ts();
       // Logger::log(format!("checking: {}", ts));
 
-      if timestamp < ts {
+      if timestamp > ts {
         // Logger::log(format!(
         //   "could not find message at time: {:?} in thread: {:#?}",
         //   timestamp, self.thread
@@ -1129,6 +1168,8 @@ impl Chat {
       // however we will go on with our days ... ?
       self.location.index += 1;
     }
+
+    self.text_input.mode = TextInputMode::Normal;
   }
 }
 
@@ -1324,9 +1365,7 @@ fn center_div(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect 
 }
 
 fn center_vertical(area: Rect, height: u16) -> Rect {
-  let [area] = Layout::vertical([Constraint::Length(height)])
-    .flex(Flex::Center)
-    .areas(area);
+  let [area] = Layout::vertical([Constraint::Length(height)]).flex(Flex::Center).areas(area);
   area
 }
 
@@ -1349,8 +1388,7 @@ fn draw_loading_sreen(state: &LoadState, frame: &mut Frame) {
   // these should only happen like immediately on start up
   if let Some(raw_duration) = state.raw_duration {
     if let Some(latest_timestamp) = state.latest_timestamp {
-      let formatted_duration =
-        format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
+      let formatted_duration = format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
 
       let partial_duration = Utc::now().timestamp_millis() as u64 - latest_timestamp;
 
@@ -1400,8 +1438,7 @@ async fn real_main() -> anyhow::Result<()> {
 
   // let db_path = default_db_path();
   let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
-  let mut config_store =
-    SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+  let mut config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
 
   // tokio::spawn(run(
   //   Cmd::LinkDevice {
@@ -1416,11 +1453,7 @@ async fn real_main() -> anyhow::Result<()> {
   if !config_store.is_registered().await {
     let mut linking_model = LinkState { url: None };
 
-    link_device(
-      SignalServers::Production,
-      "terminal enjoyer".to_string(),
-      action_tx.clone(),
-    );
+    link_device(SignalServers::Production, "terminal enjoyer".to_string(), action_tx.clone());
 
     // spawner.spawn(Cmd::LinkDevice {
     //   servers: SignalServers::Production,
@@ -1438,11 +1471,7 @@ async fn real_main() -> anyhow::Result<()> {
         Some(Action::Link(linking)) => match linking {
           LinkingAction::Url(url) => linking_model.url = Some(url),
           LinkingAction::Success => break,
-          LinkingAction::Fail => link_device(
-            SignalServers::Production,
-            "terminal enjoyer".to_string(),
-            action_tx.clone(),
-          ),
+          LinkingAction::Fail => link_device(SignalServers::Production, "terminal enjoyer".to_string(), action_tx.clone()),
           //   spawner.spawn(Cmd::LinkDevice {
           //   servers: SignalServers::Production,
           //   device_name: "terminal enjoyer".to_string(),
@@ -1466,9 +1495,7 @@ async fn real_main() -> anyhow::Result<()> {
   }
 
   // initialize all the important stuff
-  let manager = Manager::load_registered(config_store)
-    .await
-    .expect("why even try anymore?");
+  let manager = Manager::load_registered(config_store).await.expect("why even try anymore?");
 
   let mut model = Model::init();
   model.mode = Arc::clone(&mode);
@@ -1505,10 +1532,7 @@ async fn real_main() -> anyhow::Result<()> {
           Received::Contacts => Logger::log("we gyatt some contacts".to_string()),
           Received::Content(content) => {
             match loading_model.raw_duration {
-              None => {
-                loading_model.raw_duration =
-                  Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
-              }
+              None => loading_model.raw_duration = Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp),
               _ => {}
             }
 
@@ -1585,7 +1609,7 @@ async fn main() {
 //
 //   let layout = Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + 2)]).split(area);
 //
-//   chat.text_input.render(layout[1], buf);
+//   chat./ext_input.render(layout[1], buf);
 //
 //   // kind of a sketchy shadow here but the layout[1] is used like once
 //   let area = layout[0];
