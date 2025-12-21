@@ -1,4 +1,5 @@
 use crossterm::execute;
+use presage::proto::data_message::Quote;
 use presage::proto::sync_message::Sent;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -278,7 +279,11 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
   };
 
   match content.body {
-    ContentBody::DataMessage(DataMessage { body: Some(body), .. }) => {
+    ContentBody::DataMessage(DataMessage {
+      body: Some(body),
+      mut quote,
+      ..
+    }) => {
       // Logger::log(format!("DataMessage: {:#?}", body.clone()));
       // some flex-tape on the thread derivation
       let mut mine = false;
@@ -302,12 +307,20 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         })
       };
 
+      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
+
+      let message = Message {
+        body: MultiLineString::new(&body),
+        metadata,
+        quote,
+      };
+
       let Some(chat) = model.find_chat(&thread) else {
         Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
         return None;
       };
 
-      chat.insert_message(&body, metadata);
+      chat.insert_message(message);
 
       // insert_message(model, data, thread, ts, mine)
     }
@@ -350,7 +363,12 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         SyncMessage {
           sent:
             Some(Sent {
-              message: Some(DataMessage { body: Some(body), .. }),
+              message:
+                Some(DataMessage {
+                  body: Some(body),
+                  quote,
+                  ..
+                }),
               ..
             }),
           // read: read,
@@ -388,7 +406,16 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
           //     metadata.delivered_to.push((uuid, None));
           //   }
           // }
-          chat.insert_message(&body, metadata);
+
+          let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
+
+          let message = Message {
+            body: MultiLineString::new(&body),
+            metadata,
+            quote,
+          };
+
+          chat.insert_message(message);
         }
         // SyncMessage {
         //   sent: None,

@@ -1044,23 +1044,16 @@ impl Chat {
     }
   }
 
-  fn insert_message(&mut self, body: &String, meta: Metadata) {
+  fn insert_message(&mut self, message: Message) {
     // let new_timestamp = message.timestamp();
 
-    let timestamp = match &meta {
-      Metadata::MyMessage(data) => data.sent.timestamp_millis() as u64,
-      Metadata::NotMyMessage(data) => data.sent.timestamp_millis() as u64,
-    };
-
+    let timestamp = message.ts();
     let mut i = self.messages.len();
 
     while i > 0 {
       // Logger::log(format!("old timestamp: {} -- new timestamp: {}", ts, timestamp));
 
-      let ts = match &self.messages[i - 1].metadata {
-        Metadata::MyMessage(data) => data.sent.timestamp_millis() as u64,
-        Metadata::NotMyMessage(data) => data.sent.timestamp_millis() as u64,
-      };
+      let ts = self.messages[i - 1].ts();
 
       if timestamp > ts {
         break;
@@ -1092,20 +1085,20 @@ impl Chat {
     //   // _ => "Attachment that we cant display yet".to_string().clone(),
     // };
 
-    let parsed_message = Message {
-      body: MultiLineString::new(body),
-      metadata: meta,
-      quote: None,
-    };
+    // let parsed_message = Message {
+    //   body: MultiLineString::new(body),
+    //   metadata: meta,
+    //   quote: None,
+    // };
 
-    self.messages.insert(i, parsed_message);
+    self.messages.insert(i, message);
 
     if self.messages.len() == 1 {
       return;
     }
 
     // mhhhh yes what a wonderful state machine i have created
-    // i am sure this will break in a total of *ZERO* ways
+    // i am sure this will break in a grand total of *ZERO* ways
     if !self.message_options.opened {
       // little bit of a goofy statement to not underflow a usize
       if self.messages.len() - 1 == self.location.index + 1 || i <= self.location.index {
