@@ -725,7 +725,8 @@ impl Message {
 
     // this ugly shadow cost me a good 15 mins of my life ... but im not changing it
     let mut my_area = area.clone();
-    my_area.width = (area.width as f32 * settings.message_width_ratio + 0.5) as u16;
+    let availible_width = (area.width as f32 * settings.message_width_ratio + 0.5) as u16;
+    my_area.width = availible_width;
     // let message_width: u16 = (area.width as f32 * settings.message_width_ratio + 0.5) as u16 - 2;
 
     let vec_lines: Vec<String> = self.body.as_trimmed_lines(my_area.width - 2);
@@ -733,7 +734,12 @@ impl Message {
     // shrink the message to fit if it does not need mutliple lines
 
     if vec_lines.len() == 1 {
-      my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_width);
+      my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_width); // <----
+      // ok listen ik this is bad but the only other way i could think of was to modify ^^
+      // and that just seemed wrong ...
+      if let Some(msg) = &quoted {
+        my_area.width = cmp::max(my_area.width, cmp::min(availible_width, msg.body.body.len() as u16));
+      }
     }
 
     // "allign" the chat to the right if it was sent by you
@@ -751,7 +757,7 @@ impl Message {
     }
 
     if let Some(msg) = quoted {
-      for line in msg.quote_lines(my_area.width as usize, contacts) {
+      for line in msg.quote_lines(my_area.width as usize - 2, contacts) {
         lines.push(line);
       }
     }
