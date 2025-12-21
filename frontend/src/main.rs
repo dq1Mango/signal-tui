@@ -23,11 +23,11 @@ use presage::{
   libsignal_service::{
     Profile,
     configuration::SignalServers,
-    // content::DataMessage,
     prelude::{ProfileKey, Uuid},
     zkgroup::GroupMasterKeyBytes,
   },
   model::groups::Group,
+  proto::data_message::quote,
   store::Thread,
 };
 
@@ -264,7 +264,7 @@ impl Settings {
   }
 }
 
-use uuid::uuid;
+use uuid::{timestamp, uuid};
 
 impl Model {
   fn init() -> Self {
@@ -679,6 +679,7 @@ impl Message {
     &mut self,
     num_members: usize,
     active: bool,
+    quoted: Option<Message>,
     contacts: &Contacts,
     settings: &Settings,
     area: Rect,
@@ -745,8 +746,12 @@ impl Message {
 
     let mut lines: Vec<Line> = Vec::new();
 
-    if self.quote.is_some() {
-      for line in self.quote_lines(my_area.width as usize, contacts) {
+    if self.quote.is_some() != quoted.is_some() {
+      Logger::log("aint no way bruh");
+    }
+
+    if let Some(msg) = quoted {
+      for line in msg.quote_lines(my_area.width as usize, contacts) {
         lines.push(line);
       }
     }
@@ -983,6 +988,16 @@ impl Chat {
     let mut y = area.height as i16 - self.location.offset;
 
     loop {
+      // "rust is a good programing language"
+      let message = &mut self.messages[index];
+
+      let quoted = if let Some(timestamp) = message.quote {
+        self.find_message(timestamp).cloned()
+      } else {
+        None
+      };
+
+      // "rust is a good programing language"
       let message = &mut self.messages[index];
 
       let height = message.height(message_width);
@@ -998,6 +1013,7 @@ impl Chat {
       message.render(
         self.display.num_members,
         self.location.index == index && mode == Mode::Normal,
+        quoted,
         &contacts,
         settings,
         new_area,
