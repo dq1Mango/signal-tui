@@ -738,12 +738,19 @@ impl Message {
     // "allign" the chat to the right if it was sent by you
     // TODO: should add setting to toggle this behavior
 
-    // look at this cool syntax i learned today
-    if let Metadata::MyMessage(_) = self.metadata {
+    // shift message to the right if it is ur own
+    if self.is_mine() {
       my_area.x += area.width - my_area.width;
     }
 
     let mut lines: Vec<Line> = Vec::new();
+
+    if self.quote.is_some() {
+      for line in self.quote_lines(my_area.width as usize, contacts) {
+        lines.push(line);
+      }
+    }
+
     for yap in vec_lines {
       lines.push(Line::from(yap));
     }
@@ -842,7 +849,7 @@ impl Message {
   }
 
   fn height(&mut self, width: u16) -> u16 {
-    let reply_height = if let Some(_) = self.quote { 3 } else { 0 };
+    let reply_height = if self.quote.is_some() { 3 } else { 0 };
     self.body.as_lines(width).len() as u16 + 2 + reply_height
   }
 }
@@ -978,7 +985,7 @@ impl Chat {
     loop {
       let message = &mut self.messages[index];
 
-      let height = message.body.rows(message_width) + 2;
+      let height = message.height(message_width);
 
       y -= height as i16;
       if y < 0 {
