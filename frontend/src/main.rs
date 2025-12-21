@@ -1177,36 +1177,51 @@ impl Chat {
       _ => None,
     };
 
-    // dm chat:
-    spawner.spawn(Cmd::SendToThread {
-      thread: self.thread.clone(),
-      message: data,
-      quote: quote,
-      timestamp: ts.timestamp_millis() as u64,
-      attachment_filepath: Vec::new().into(),
-    });
+    match self.text_input.mode {
+      TextInputMode::Normal | TextInputMode::Replying => {
+        spawner.spawn(Cmd::SendToThread {
+          thread: self.thread.clone(),
+          message: data,
+          quote: quote,
+          timestamp: ts.timestamp_millis() as u64,
+          attachment_filepath: Vec::new().into(),
+        });
 
-    // maybe i should implement this by returning an Action enum but i cant be bothered rn
-    //
-    // maybe i should also use the function i already have for adding messages, but thats designed
-    // for DATA messages
+        // maybe i should implement this by returning an Action enum but i cant be bothered rn
+        //
+        // maybe i should also use the function i already have for adding messages, but thats designed
+        // for DATA messages
 
-    self.messages.push(Message {
-      body: MultiLineString::new(&self.text_input.body.body),
-      // this now timestamp is a little sketchy cuz the server is the one who actually says when
-      // what happened
-      metadata: Metadata::new_mine(ts, self.display.num_members),
-    });
+        self.messages.push(Message {
+          body: MultiLineString::new(&self.text_input.body.body),
+          // this now timestamp is a little sketchy cuz the server is the one who actually says when
+          // what happened
+          metadata: Metadata::new_mine(ts, self.display.num_members),
+        });
 
-    self.text_input.clear();
+        // scroll down if we r at the bottom (this logic is def repeated and shouldnt be)
+        if self.messages.len() - 1 == self.location.index + 1 {
+          // Oh noooooo, i have violated the ELM design patterns ....
+          // however we will go on with our days ... ?
+          self.location.index += 1;
+        }
+      }
+      TextInputMode::Editing => {
+        let target_message = self.find_message(self.message_options.timestamp).unwrap();
+        target_message.body.set_content(data.clone());
 
-    // scroll down if we r at the bottom (this logic is def repeated and shouldnt be)
-    if self.messages.len() - 1 == self.location.index + 1 {
-      // Oh noooooo, i have violated the ELM design patterns ....
-      // however we will go on with our days ... ?
-      self.location.index += 1;
+        let target_timestamp = target_message.ts();
+
+        spawner.spawn(Cmd::EditMessage {
+          thread: self.thread.clone(),
+          message: data,
+          timestamp: ts.timestamp_millis() as u64,
+          target_timestamp: target_timestamp,
+        });
+      }
     }
 
+    self.text_input.clear();
     self.text_input.mode = TextInputMode::Normal;
   }
 }

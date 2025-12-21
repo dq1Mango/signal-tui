@@ -10,6 +10,7 @@ use std::time::Duration;
 use anyhow::{Context as _, anyhow, bail};
 use base64::prelude::*;
 use chrono::Local;
+use color_eyre::owo_colors::OwoColorize;
 use directories::ProjectDirs;
 use futures::StreamExt;
 use futures::{channel::oneshot, future, pin_mut};
@@ -203,11 +204,17 @@ pub enum Cmd {
     attachment_filepath: Vec<PathBuf>,
   },
   SendToThread {
+    thread: Thread,
     message: String,
     quote: Option<Quote>,
-    thread: Thread,
     timestamp: u64,
     attachment_filepath: Vec<PathBuf>,
+  },
+  EditMessage {
+    thread: Thread,
+    message: String,
+    timestamp: u64,
+    target_timestamp: u64,
   },
   SyncContacts,
   // #[clap(about = "Print various statistics useful for debugging")]
@@ -899,6 +906,38 @@ pub async fn run(
       };
 
       send(manager, recipient_from_thread(thread), timestamp, data_message, quote).await?;
+    }
+
+    Cmd::EditMessage {
+      message,
+      thread,
+      timestamp,
+      target_timestamp,
+    } => {
+      let group_v2 = match &thread {
+        Thread::Group(master_key) => Some(GroupContextV2 {
+          master_key: Some(master_key.to_vec()),
+          revision: Some(0),
+          ..Default::default()
+        }),
+        Thread::Contact(_) => None,
+      };
+
+      if let ContentBody::DataMessage(mut targeted_message) = manager
+        .store()
+        .message(&thread, target_timestamp)
+        .await?
+        .expect("ruh roh")
+        .body
+      {
+        targeted_message.body = Some(message);
+        let content = EditMessage {
+          data_message: Some(targeted_message),
+          target_sent_timestamp: Some(target_timestamp),
+        };
+        send(manager, recipient_from_thread(thread), timestamp, content, None).await?;
+        Logger::log("successfully sent the edit message");
+      }
     }
     Cmd::RetrieveProfile { uuid, profile_key } => {}
     Cmd::ListGroups => {
