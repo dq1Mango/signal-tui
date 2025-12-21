@@ -513,6 +513,12 @@ impl TextInput {
     self.cursor_position = self.calc_cursor_position(area)
   }
 
+  pub fn set_content(&mut self, string: String) {
+    // dont be passing in no massive strings here now
+    self.cursor_index = string.len() as u16;
+    self.body.set_content(string);
+  }
+
   fn calc_cursor_position(&mut self, area: Rect) -> Position {
     // gotta pad the border (still havent found a better way of doing this)
     let mut pos = Position {

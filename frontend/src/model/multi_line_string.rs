@@ -29,6 +29,13 @@ impl MultiLineString {
     }
   }
 
+  pub fn set_content(self: &mut Self, string: String) {
+    self.body = string;
+    self.cached_lines = vec![];
+    self.cached_width = 0;
+    self.cached_length = 0;
+  }
+
   // I hate handling utf-8
   fn calc_lines(&self, width: u16) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
