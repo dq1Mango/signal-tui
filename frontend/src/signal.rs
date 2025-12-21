@@ -17,6 +17,7 @@ use mime_guess::mime::APPLICATION_OCTET_STREAM;
 use notify_rust::Notification;
 use presage::Error;
 use presage::libsignal_service::configuration::SignalServers;
+use presage::libsignal_service::content::Metadata;
 use presage::libsignal_service::content::Reaction;
 use presage::libsignal_service::pre_keys::PreKeysStore;
 use presage::libsignal_service::prelude::ProfileKey;
@@ -63,6 +64,7 @@ use url::Url;
 use crate::Message;
 use crate::Model;
 use crate::MyManager;
+use crate::NotMyMessage;
 use crate::Profile;
 use crate::logger::Logger;
 // #[derive(Parser)]
@@ -282,6 +284,10 @@ pub fn get_quote(quoted: &Message) -> Quote {
   Quote {
     id: Some(quoted.ts()),
     text: Some(quoted.body.body.clone()),
+    author_aci: match quoted.metadata {
+      crate::Metadata::NotMyMessage(NotMyMessage { sender, .. }) => Some(sender.to_string()),
+      crate::Metadata::MyMessage(_) => None,
+    },
     ..Default::default()
   }
 }
@@ -306,7 +312,9 @@ async fn send(
   if let ContentBody::DataMessage(d) = &mut content_body {
     d.timestamp = Some(timestamp);
     if let Some(ref mut q) = quote {
-      q.author_aci = Some(manager.registration_data().service_ids.aci.to_string());
+      if q.author_aci == None {
+        q.author_aci = Some(manager.registration_data().service_ids.aci.to_string());
+      }
       Logger::log(format!("wow look at this quote: {:#?}", quote.clone()));
       d.quote = quote;
     }
