@@ -149,6 +149,7 @@ pub enum Metadata {
 pub struct Message {
   body: MultiLineString,
   metadata: Metadata,
+  quote: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -485,22 +486,10 @@ impl TextInput {
     let mut lines: Vec<Line> = Vec::new();
 
     if let Some(msg) = message {
-      lines.push(Line::from(vec![
-        Span::from(match msg.metadata {
-          Metadata::MyMessage(_) => "You",
-          Metadata::NotMyMessage(NotMyMessage { sender, .. }) => {
-            if let Some(profile_name) = &contacts[&sender].name {
-              &profile_name.given_name
-            } else {
-              "You found a bug!"
-            }
-          }
-        }),
-        Span::from(":"),
-      ]));
-
-      lines.push(Line::from(msg.body.body.shrink(area.width - 2)));
-      lines.push(Line::from("-".repeat(area.width as usize - 2)));
+      for line in msg.quote_lines(area.width as usize - 2, contacts) {
+        lines.push(line);
+      }
+      // lines.push();
     }
 
     // logger.log(format!("this is the first line: {}", self.cursor_index));
@@ -829,8 +818,32 @@ impl Message {
     // result
   }
 
+  pub fn quote_lines<'a, 'b>(&self, width: usize, contacts: &'a Contacts) -> Vec<Line<'a>> {
+    let mut lines = vec![];
+
+    lines.push(Line::from(vec![
+      Span::from(match self.metadata {
+        Metadata::MyMessage(_) => "You",
+        Metadata::NotMyMessage(NotMyMessage { sender, .. }) => {
+          if let Some(profile_name) = &contacts[&sender].name {
+            &profile_name.given_name
+          } else {
+            "You found a bug!"
+          }
+        }
+      }),
+      Span::from(":"),
+    ]));
+
+    lines.push(Line::from(self.body.body.shrink(width)));
+    lines.push(Line::from("-".repeat(width)));
+
+    lines
+  }
+
   fn height(&mut self, width: u16) -> u16 {
-    self.body.as_lines(width).len() as u16 + 2
+    let reply_height = if let Some(_) = self.quote { 3 } else { 0 };
+    self.body.as_lines(width).len() as u16 + 2 + reply_height
   }
 }
 
@@ -1075,6 +1088,7 @@ impl Chat {
     let parsed_message = Message {
       body: MultiLineString::new(body),
       metadata: meta,
+      quote: None,
     };
 
     self.messages.insert(i, parsed_message);
@@ -1172,13 +1186,16 @@ impl Chat {
 
     let ts = Utc::now();
 
-    let quote = match self.text_input.mode {
-      TextInputMode::Replying => Some(get_quote(self.find_message(self.message_options.timestamp).unwrap())),
-      _ => None,
-    };
+    let mut quote_stamp = None;
+    let mut quote = None;
 
     match self.text_input.mode {
       TextInputMode::Normal | TextInputMode::Replying => {
+        if self.text_input.mode == TextInputMode::Replying {
+          quote_stamp = Some(self.message_options.timestamp);
+          quote = Some(get_quote(self.find_message(quote_stamp.unwrap()).unwrap()));
+        }
+
         spawner.spawn(Cmd::SendToThread {
           thread: self.thread.clone(),
           message: data,
@@ -1197,6 +1214,7 @@ impl Chat {
           // this now timestamp is a little sketchy cuz the server is the one who actually says when
           // what happened
           metadata: Metadata::new_mine(ts, self.display.num_members),
+          quote: quote_stamp,
         });
 
         // scroll down if we r at the bottom (this logic is def repeated and shouldnt be)
