@@ -667,7 +667,7 @@ impl Message {
     &mut self,
     num_members: usize,
     active: bool,
-    quoted: Option<FindMsgResult>,
+    quoted: Option<Message>,
     contacts: &Contacts,
     settings: &Settings,
     area: Rect,
@@ -726,7 +726,7 @@ impl Message {
       my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_width); // <----
       // ok listen ik this is bad but the only other way i could think of was to modify ^^
       // and that just seemed wrong ...
-      if let Some(FindMsgResult::Found(msg)) = &quoted {
+      if let Some(msg) = &quoted {
         my_area.width = cmp::max(my_area.width, cmp::min(availible_width, msg.body.body.len() as u16 + 2));
       }
     }
@@ -745,25 +745,8 @@ impl Message {
       Logger::log("aint no way bruh");
     }
 
-    if let Some(result) = quoted {
-      let reply_lines = match result {
-        FindMsgResult::Found(msg) => msg.quote_lines(my_area.width as usize - 2, contacts),
-        FindMsgResult::NotLoaded => {
-          vec![
-            Line::from("Message not loaded..."),
-            Line::from("scroll up to see this message"),
-            Line::from("-".repeat(my_area.width as usize - 2)),
-          ]
-        }
-        FindMsgResult::NotExist => {
-          vec![
-            Line::from("Message not found..."),
-            Line::from("i suspect smthn has gone wrong"),
-            Line::from("-".repeat(my_area.width as usize - 2)),
-          ]
-        }
-      };
-      for line in reply_lines {
+    if let Some(msg) = quoted {
+      for line in msg.quote_lines(my_area.width as usize - 2, contacts) {
         lines.push(line);
       }
     }
@@ -889,25 +872,6 @@ pub enum FindMessageResult<'a> {
   NotLoaded,
   NotExist,
   Found(&'a mut Message),
-}
-
-// i am truly a programming powerhouse as seen by these lovely enums
-#[derive(Debug)]
-pub enum FindMsgResult {
-  NotLoaded,
-  NotExist,
-  Found(Message),
-}
-
-// mhhhhh what a great "clone"
-impl FindMessageResult<'_> {
-  fn clone(self) -> FindMsgResult {
-    match self {
-      FindMessageResult::Found(msg) => FindMsgResult::Found(msg.clone()),
-      FindMessageResult::NotLoaded => FindMsgResult::NotLoaded,
-      FindMessageResult::NotExist => FindMsgResult::NotExist,
-    }
-  }
 }
 
 // pub type OptionOfMessage<'a> = Option<&'a mut Message>;
@@ -1040,7 +1004,10 @@ impl Chat {
       let message = &mut self.messages[index];
 
       let quoted = if let Some(timestamp) = message.quote {
-        Some(self.find_message_result(timestamp).clone())
+        match self.find_message(timestamp) {
+          Ok(()) => {}
+          Err(()) => {}
+        }
       } else {
         None
       };
@@ -1163,7 +1130,7 @@ impl Chat {
     }
   }
 
-  fn find_message_result(&mut self, timestamp: u64) -> FindMessageResult<'_> {
+  fn find_message_error(&mut self, timestamp: u64) -> FindMessageResult<'_> {
     // Logger::log(format!("looking for: {}", timestamp));
     let mut i = self.messages.len();
 
@@ -1196,10 +1163,33 @@ impl Chat {
 
   fn find_message(&mut self, timestamp: u64) -> Option<&mut Message> {
     // Logger::log(format!("looking for: {}", timestamp));
-    match self.find_message_result(timestamp) {
-      FindMessageResult::Found(msg) => Some(msg),
-      _ => None,
+    let mut i = self.messages.len();
+
+    if i == 0 {
+      return None;
     }
+
+    while i > 0 {
+      // Logger::log(format!("old timestamp: {} -- new timestamp: {}", ts, timestamp));
+      i -= 1;
+
+      let ts = self.messages[i].ts();
+      // Logger::log(format!("checking: {}", ts));
+
+      if timestamp > ts {
+        // Logger::log(format!(
+        //   "could not find message at time: {:?} in thread: {:#?}",
+        //   timestamp, self.thread
+        // ));
+        return None;
+      }
+
+      if timestamp == ts {
+        return Some(&mut self.messages[i]);
+      }
+    }
+
+    None
   }
 
   // fn add_receipt(&mut self, receipt: Receipt) {
