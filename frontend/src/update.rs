@@ -35,6 +35,7 @@ pub enum Action {
   Type(char),
   Backspace,
   Send,
+  Nvm,
 
   Scroll(isize),
   ScrollGroup(isize),
@@ -97,7 +98,6 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
       KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
       KeyCode::Enter => Some(Action::Send),
       KeyCode::Char(char) => Some(Action::Type(char)),
-      // this will not get confusing trust
       KeyCode::Backspace => Some(Action::Backspace),
       _ => None,
     },
@@ -113,6 +113,8 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
       KeyCode::Char('o') => Some(Action::SetMode(Mode::MessageOptions)),
 
       KeyCode::Char('S') => Some(Action::SetFocus(Focus::Settings)),
+
+      KeyCode::Char('x') => Some(Action::Nvm),
 
       KeyCode::Char('q') => Some(Action::Quit),
       _ => None,
@@ -159,8 +161,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index =
-          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index = (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -199,6 +200,20 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
         model.current_chat().message_options.open(ts, mine);
       } else {
         model.current_chat().message_options.close();
+      }
+    }
+
+    Action::Nvm => {
+      let input = &mut model.current_chat().text_input;
+      match input.mode {
+        TextInputMode::Replying => {
+          input.mode = TextInputMode::Normal;
+        }
+        TextInputMode::Editing => {
+          input.mode = TextInputMode::Normal;
+          input.clear();
+        }
+        TextInputMode::Normal => {}
       }
     }
 
@@ -280,9 +295,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
   match content.body {
     ContentBody::DataMessage(DataMessage {
-      body: Some(body),
-      mut quote,
-      ..
+      body: Some(body), quote, ..
     }) => {
       // Logger::log(format!("DataMessage: {:#?}", body.clone()));
       // some flex-tape on the thread derivation
@@ -363,12 +376,9 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         SyncMessage {
           sent:
             Some(Sent {
-              message:
-                Some(DataMessage {
-                  body: Some(body),
-                  quote,
-                  ..
-                }),
+              message: Some(DataMessage {
+                body: Some(body), quote, ..
+              }),
               ..
             }),
           // read: read,

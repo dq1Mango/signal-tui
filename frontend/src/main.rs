@@ -264,7 +264,7 @@ impl Settings {
   }
 }
 
-use uuid::{timestamp, uuid};
+use uuid::uuid;
 
 impl Model {
   fn init() -> Self {
@@ -463,14 +463,7 @@ impl Model {
 }
 
 impl TextInput {
-  fn render(
-    &mut self,
-    active: bool,
-    message: Option<&Message>,
-    contacts: &Contacts,
-    area: Rect,
-    buf: &mut Buffer,
-  ) {
+  fn render(&mut self, active: bool, message: Option<&Message>, contacts: &Contacts, area: Rect, buf: &mut Buffer) {
     let color = if active { Color::Magenta } else { Color::Reset };
 
     let mut block = Block::bordered()
@@ -641,11 +634,7 @@ impl MessageOptions {
 
     let length = options.len();
 
-    let area = center_div(
-      area,
-      Constraint::Length(fixed_width),
-      Constraint::Length(length as u16 + 2),
-    );
+    let area = center_div(area, Constraint::Length(fixed_width), Constraint::Length(length as u16 + 2));
 
     let mut lines = Vec::with_capacity(options.len());
 
@@ -909,8 +898,7 @@ impl Chat {
       None
     };
 
-    let layout =
-      Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
+    let layout = Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
 
     self
       .text_input
@@ -1034,28 +1022,18 @@ impl Chat {
     }
 
     if mode == Mode::MessageOptions {
-      self
-        .message_options
-        .render(&self.messages[self.location.index], area, buf);
+      self.message_options.render(&self.messages[self.location.index], area, buf);
     }
   }
 
   fn last_message(&self) -> Option<&Message> {
     let last = self.messages.len();
-    if last <= 0 {
-      None
-    } else {
-      Some(&self.messages[last - 1])
-    }
+    if last <= 0 { None } else { Some(&self.messages[last - 1]) }
   }
 
   fn last_message_mut(&mut self) -> Option<&mut Message> {
     let last = self.messages.len();
-    if last <= 0 {
-      None
-    } else {
-      Some(&mut self.messages[last - 1])
-    }
+    if last <= 0 { None } else { Some(&mut self.messages[last - 1]) }
   }
 
   fn selected_message(&self) -> Option<&Message> {
@@ -1458,9 +1436,7 @@ fn center_div(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect 
 }
 
 fn center_vertical(area: Rect, height: u16) -> Rect {
-  let [area] = Layout::vertical([Constraint::Length(height)])
-    .flex(Flex::Center)
-    .areas(area);
+  let [area] = Layout::vertical([Constraint::Length(height)]).flex(Flex::Center).areas(area);
   area
 }
 
@@ -1483,8 +1459,7 @@ fn draw_loading_sreen(state: &LoadState, frame: &mut Frame) {
   // these should only happen like immediately on start up
   if let Some(raw_duration) = state.raw_duration {
     if let Some(latest_timestamp) = state.latest_timestamp {
-      let formatted_duration =
-        format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
+      let formatted_duration = format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
 
       let partial_duration = Utc::now().timestamp_millis() as u64 - latest_timestamp;
 
@@ -1534,8 +1509,7 @@ async fn real_main() -> anyhow::Result<()> {
 
   // let db_path = default_db_path();
   let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
-  let mut config_store =
-    SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+  let mut config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
 
   // tokio::spawn(run(
   //   Cmd::LinkDevice {
@@ -1550,11 +1524,7 @@ async fn real_main() -> anyhow::Result<()> {
   if !config_store.is_registered().await {
     let mut linking_model = LinkState { url: None };
 
-    link_device(
-      SignalServers::Production,
-      "terminal enjoyer".to_string(),
-      action_tx.clone(),
-    );
+    link_device(SignalServers::Production, "terminal enjoyer".to_string(), action_tx.clone());
 
     // spawner.spawn(Cmd::LinkDevice {
     //   servers: SignalServers::Production,
@@ -1572,11 +1542,7 @@ async fn real_main() -> anyhow::Result<()> {
         Some(Action::Link(linking)) => match linking {
           LinkingAction::Url(url) => linking_model.url = Some(url),
           LinkingAction::Success => break,
-          LinkingAction::Fail => link_device(
-            SignalServers::Production,
-            "terminal enjoyer".to_string(),
-            action_tx.clone(),
-          ),
+          LinkingAction::Fail => link_device(SignalServers::Production, "terminal enjoyer".to_string(), action_tx.clone()),
           //   spawner.spawn(Cmd::LinkDevice {
           //   servers: SignalServers::Production,
           //   device_name: "terminal enjoyer".to_string(),
@@ -1600,9 +1566,7 @@ async fn real_main() -> anyhow::Result<()> {
   }
 
   // initialize all the important stuff
-  let manager = Manager::load_registered(config_store)
-    .await
-    .expect("why even try anymore?");
+  let manager = Manager::load_registered(config_store).await.expect("why even try anymore?");
 
   let mut model = Model::init();
   model.mode = Arc::clone(&mode);
@@ -1639,10 +1603,7 @@ async fn real_main() -> anyhow::Result<()> {
           Received::Contacts => Logger::log("we gyatt some contacts".to_string()),
           Received::Content(content) => {
             match loading_model.raw_duration {
-              None => {
-                loading_model.raw_duration =
-                  Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
-              }
+              None => loading_model.raw_duration = Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp),
               _ => {}
             }
 
