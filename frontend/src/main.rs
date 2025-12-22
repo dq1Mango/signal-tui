@@ -27,7 +27,6 @@ use presage::{
     zkgroup::GroupMasterKeyBytes,
   },
   model::groups::Group,
-  proto::data_message::quote,
   store::Thread,
 };
 
@@ -264,10 +263,10 @@ impl Settings {
   }
 }
 
-use uuid::uuid;
-
 impl Model {
   fn init() -> Self {
+    use uuid::uuid;
+
     let dummy_number = PhoneNumber("14124206767".to_string());
     let dummy_id = uuid!("00000000-0000-0000-0000-000000000000");
 
@@ -723,11 +722,12 @@ impl Message {
     // shrink the message to fit if it does not need mutliple lines
 
     if vec_lines.len() == 1 {
+      // these +- 2's are going to be the death of me
       my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_width); // <----
       // ok listen ik this is bad but the only other way i could think of was to modify ^^
       // and that just seemed wrong ...
       if let Some(msg) = &quoted {
-        my_area.width = cmp::max(my_area.width, cmp::min(availible_width, msg.body.body.len() as u16));
+        my_area.width = cmp::max(my_area.width, cmp::min(availible_width, msg.body.body.len() as u16 + 2));
       }
     }
 
@@ -802,7 +802,7 @@ impl Message {
     };
   }
 
-  fn format_duration(&self) -> String {
+  pub fn format_duration(&self) -> String {
     let time = self.timestamp();
     let duration = Utc::now().signed_duration_since(time);
 
@@ -1319,11 +1319,6 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
   //
   // Block::bordered().border_set(border::THICK).render(area, buf);
   //
-  // let mut area = area;
-  // area.x += 1;
-  // area.width -= 2;
-  // area.height -= 2;
-  // area.y += 1;
 
   let color = if active {
     if hovered { Color::Magenta } else { Color::Gray }

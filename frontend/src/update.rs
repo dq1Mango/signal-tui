@@ -251,7 +251,26 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
 }
 
 pub fn handle_option(model: &mut Model, _spawner: &SignalSpawner, option: MessageOption) -> Option<Action> {
-  model.current_chat().message_options.close();
+  let chat = model.current_chat();
+  let message = chat.find_message(chat.message_options.timestamp)?;
+
+  // ensure the optino we receive is actually valid for the message
+  // ie. cant edit / delete someone elses message
+  if let Metadata::NotMyMessage(_) = message.metadata {
+    match &option {
+      &MessageOption::Edit => {
+        Logger::log(format!("invalid message option: {:?}", option));
+        return None;
+      }
+      &MessageOption::Delete => {
+        Logger::log(format!("invalid message option: {:?}", option));
+        return None;
+      }
+      _ => {}
+    }
+  }
+
+  chat.message_options.close();
 
   match option {
     MessageOption::Copy => {
@@ -267,11 +286,12 @@ pub fn handle_option(model: &mut Model, _spawner: &SignalSpawner, option: Messag
       Some(Action::SetMode(Mode::Normal))
     }
     MessageOption::Reply => {
-      model.current_chat().text_input.mode = TextInputMode::Replying;
+      chat.text_input.mode = TextInputMode::Replying;
       Some(Action::SetMode(Mode::Insert))
     }
     MessageOption::Edit => {
-      let chat = model.current_chat();
+      // kinda gotta find the message twice sometimes cuz "cant have more than one mutable borrow
+      // yaaaaaaaaaayy..."
       let body = chat.find_message(chat.message_options.timestamp)?.body.body.clone();
       chat.text_input.set_content(body);
 
