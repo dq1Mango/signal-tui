@@ -161,7 +161,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index = (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index =
+          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -250,7 +251,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
   None
 }
 
-pub fn handle_option(model: &mut Model, _spawner: &SignalSpawner, option: MessageOption) -> Option<Action> {
+pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: MessageOption) -> Option<Action> {
   let chat = model.current_chat();
   let message = chat.find_message(chat.message_options.timestamp)?;
 
@@ -298,6 +299,17 @@ pub fn handle_option(model: &mut Model, _spawner: &SignalSpawner, option: Messag
       chat.text_input.mode = TextInputMode::Editing;
       Some(Action::SetMode(Mode::Insert))
     }
+    MessageOption::Delete => {
+      let ts = model.current_chat().message_options.timestamp;
+      spawner.spawn(Cmd::DeleteMessage {
+        thread: model.current_chat().thread.clone(),
+        target_timestamp: ts,
+      });
+
+      model.current_chat().delete_message(ts);
+
+      Some(Action::SetMode(Mode::Normal))
+    }
     _ => None,
   }
 }
@@ -315,7 +327,9 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
   match content.body {
     ContentBody::DataMessage(DataMessage {
-      body: Some(body), quote, ..
+      body: Some(body),
+      quote,
+      ..
     }) => {
       // Logger::log(format!("DataMessage: {:#?}", body.clone()));
       // some flex-tape on the thread derivation
@@ -396,9 +410,12 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         SyncMessage {
           sent:
             Some(Sent {
-              message: Some(DataMessage {
-                body: Some(body), quote, ..
-              }),
+              message:
+                Some(DataMessage {
+                  body: Some(body),
+                  quote,
+                  ..
+                }),
               ..
             }),
           // read: read,

@@ -10,7 +10,7 @@ use std::time::Duration;
 use anyhow::{Context as _, anyhow, bail};
 use base64::prelude::*;
 use chrono::Local;
-use color_eyre::owo_colors::OwoColorize;
+use chrono::Utc;
 use directories::ProjectDirs;
 use futures::StreamExt;
 use futures::{channel::oneshot, future, pin_mut};
@@ -26,6 +26,7 @@ use presage::libsignal_service::prelude::Uuid;
 use presage::libsignal_service::prelude::phonenumber::PhoneNumber;
 use presage::libsignal_service::proto::data_message::Quote;
 use presage::libsignal_service::proto::sync_message::Sent;
+use presage::libsignal_service::protocol::Aci;
 use presage::libsignal_service::protocol::ServiceId;
 use presage::libsignal_service::sender::AttachmentSpec;
 use presage::libsignal_service::zkgroup::GroupMasterKeyBytes;
@@ -34,8 +35,10 @@ use presage::model::groups::Group;
 use presage::model::identity::OnNewIdentity;
 use presage::model::messages::Received;
 use presage::proto::EditMessage;
+use presage::proto::NullMessage;
 use presage::proto::ReceiptMessage;
 use presage::proto::SyncMessage;
+use presage::proto::data_message::Delete;
 use presage::proto::receipt_message;
 use presage::store::ContentExt;
 use presage::store::ContentsStore;
@@ -214,6 +217,10 @@ pub enum Cmd {
     thread: Thread,
     message: String,
     timestamp: u64,
+    target_timestamp: u64,
+  },
+  DeleteMessage {
+    thread: Thread,
     target_timestamp: u64,
   },
   SyncContacts,
@@ -938,6 +945,44 @@ pub async fn run(
         send(manager, recipient_from_thread(thread), timestamp, content, None).await?;
         Logger::log("successfully sent the edit message");
       }
+    }
+    Cmd::DeleteMessage {
+      thread,
+      target_timestamp,
+    } => {
+      let timestamp = Utc::now().timestamp_millis() as u64;
+      let group_v2 = match &thread {
+        Thread::Group(master_key) => Some(GroupContextV2 {
+          master_key: Some(master_key.to_vec()),
+          revision: Some(0),
+          ..Default::default()
+        }),
+        Thread::Contact(_) => None,
+      };
+      let delete_message = DataMessage {
+        body: None,
+        group_v2,
+        delete: Some(Delete {
+          target_sent_timestamp: Some(target_timestamp),
+        }),
+        ..Default::default()
+      };
+
+      let store = manager.store();
+      if let Some(mut existing_msg) = store.message(&thread, target_timestamp).await? {
+        existing_msg.metadata.sender = Aci::from(Uuid::nil()).into();
+        existing_msg.body = NullMessage::default().into();
+        store.save_message(&thread, existing_msg).await?;
+      } else {
+        Logger::log(format!(
+          "could not find message to delete in thread {}, {}",
+          thread, target_timestamp
+        ));
+      }
+
+      send(manager, recipient_from_thread(thread), timestamp, delete_message, None).await?;
+
+      Logger::log("successfully sent the delete message");
     }
     Cmd::RetrieveProfile { uuid, profile_key } => {}
     Cmd::ListGroups => {
