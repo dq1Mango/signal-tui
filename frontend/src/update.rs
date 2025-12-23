@@ -464,23 +464,8 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
           chat.insert_message(message);
         }
-        // SyncMessage {
-        //   sent: None,
-        //   read: receipts,
-        //   ..
-        // } => {
-        //   if let Some(chat) = model.find_chat(thread) {
-        //     for receipt in receipts {
-        //       chat.add_receipt(receipt.timestamp);
-        //     }
-        //   }
-        // }
         _ => {}
       }
-      // if let Some(sent) = data.sent {
-      //   if let Some(message) = sent.message {
-      //   }
-      // }
     }
     ContentBody::ReceiptMessage(receipt_message) => {
       if let Some(chat) = model.find_chat(&thread) {
