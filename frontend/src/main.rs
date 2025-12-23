@@ -633,7 +633,7 @@ impl MessageOptions {
 
     let options = match message.metadata {
       Metadata::NotMyMessage(_) => vec!["  Reply", "  React", "  Copy", "  Info"],
-      Metadata::MyMessage(_) => vec!["  Reply", " React", "  Edit", "  Copy", "  Info", "  Delete"],
+      Metadata::MyMessage(_) => vec!["  Reply", "  React", "  Edit", "  Copy", "  Info", "  Delete"],
     };
     let options: Vec<Vec<char>> = options.iter().map(|s| s.chars().collect()).collect();
 
