@@ -30,6 +30,17 @@ pub enum LinkingAction {
   Fail,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum MessageOption {
+  Reply,
+  React,
+  Edit,
+  Copy,
+  Info,
+  Delete,
+}
+
+// the important one
 #[derive(Debug)]
 pub enum Action {
   Type(char),
@@ -55,14 +66,6 @@ pub enum Action {
   Quit,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum MessageOption {
-  Reply,
-  Edit,
-  Copy,
-  Info,
-  Delete,
-}
 /// Convert Event to Action
 ///
 /// We don't need to pass in a `model` to this function in this example
@@ -161,8 +164,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index =
-          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index = (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -210,7 +212,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
         TextInputMode::Replying => {
           input.mode = TextInputMode::Normal;
         }
-        TextInputMode::Editing => {
+        TextInputMode::Editing | TextInputMode::Reacting => {
           input.mode = TextInputMode::Normal;
           input.clear();
         }
@@ -290,6 +292,10 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
       chat.text_input.mode = TextInputMode::Replying;
       Some(Action::SetMode(Mode::Insert))
     }
+    MessageOption::React => {
+      chat.text_input.mode = TextInputMode::Reacting;
+      Some(Action::SetMode(Mode::Insert))
+    }
     MessageOption::Edit => {
       // kinda gotta find the message twice sometimes cuz "cant have more than one mutable borrow
       // yaaaaaaaaaayy..."
@@ -327,9 +333,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
   match content.body {
     ContentBody::DataMessage(DataMessage {
-      body: Some(body),
-      quote,
-      ..
+      body: Some(body), quote, ..
     }) => {
       // Logger::log(format!("DataMessage: {:#?}", body.clone()));
       // some flex-tape on the thread derivation
@@ -410,12 +414,9 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         SyncMessage {
           sent:
             Some(Sent {
-              message:
-                Some(DataMessage {
-                  body: Some(body),
-                  quote,
-                  ..
-                }),
+              message: Some(DataMessage {
+                body: Some(body), quote, ..
+              }),
               ..
             }),
           // read: read,

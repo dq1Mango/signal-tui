@@ -219,6 +219,13 @@ pub enum Cmd {
     timestamp: u64,
     target_timestamp: u64,
   },
+  ReactToThread {
+    thread: Thread,
+    reaction: String,
+    timestamp: u64,
+    target_timestamp: u64,
+    author_uuid: Option<Uuid>,
+  },
   DeleteMessage {
     thread: Thread,
     target_timestamp: u64,
@@ -427,16 +434,11 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     return;
   };
 
-  async fn format_data_message(
-    thread: &Thread,
-    data_message: &DataMessage,
-    manager: &MyManager,
-  ) -> Option<String> {
+  async fn format_data_message(thread: &Thread, data_message: &DataMessage, manager: &MyManager) -> Option<String> {
     match data_message {
       DataMessage {
         quote: Some(Quote {
-          text: Some(quoted_text),
-          ..
+          text: Some(quoted_text), ..
         }),
         body: Some(body),
         ..
@@ -519,11 +521,10 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          edit_message:
-            Some(EditMessage {
-              data_message: Some(data_message),
-              ..
-            }),
+          edit_message: Some(EditMessage {
+            data_message: Some(data_message),
+            ..
+          }),
           ..
         }),
       ..
@@ -577,11 +578,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 }
 
-async fn receive(
-  manager: &mut MyManager,
-  notifications: bool,
-  output: mpsc::UnboundedSender<Action>,
-) -> anyhow::Result<()> {
+async fn receive(manager: &mut MyManager, notifications: bool, output: mpsc::UnboundedSender<Action>) -> anyhow::Result<()> {
   let attachments_tmp_dir = attachments_tmp_dir()?;
   let messages = manager
     .receive_messages()
@@ -785,11 +782,7 @@ pub async fn retrieve_profile(
 use crate::update::Action;
 use crate::update::LinkingAction;
 
-pub async fn run(
-  manager: &mut MyManager,
-  subcommand: Cmd,
-  output: mpsc::UnboundedSender<Action>,
-) -> anyhow::Result<()> {
+pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::UnboundedSender<Action>) -> anyhow::Result<()> {
   match subcommand {
     Cmd::Register {
       servers,
@@ -837,11 +830,7 @@ pub async fn run(
 
       for device in devices {
         let device_name = device.name.unwrap_or_else(|| "(no device name)".to_string());
-        let current_marker = if device.id == current_device_id {
-          "(this device)"
-        } else {
-          ""
-        };
+        let current_marker = if device.id == current_device_id { "(this device)" } else { "" };
 
         println!(
           "- Device {} {}\n  Name: {}\n  Created: {}\n  Last seen: {}",
@@ -945,6 +934,41 @@ pub async fn run(
         send(manager, recipient_from_thread(thread), timestamp, content, None).await?;
         Logger::log("successfully sent the edit message");
       }
+    }
+    Cmd::ReactToThread {
+      reaction,
+      thread,
+      timestamp,
+      target_timestamp,
+      author_uuid,
+    } => {
+      let uuid: String = if let Some(uuid) = author_uuid {
+        uuid.into()
+      } else {
+        manager.registration_data().service_ids.aci.into()
+      };
+
+      let group_v2 = match &thread {
+        Thread::Group(master_key) => Some(GroupContextV2 {
+          master_key: Some(master_key.to_vec()),
+          revision: Some(0),
+          ..Default::default()
+        }),
+        Thread::Contact(_) => None,
+      };
+
+      let data_message = DataMessage {
+        reaction: Some(Reaction {
+          emoji: Some(reaction),
+          remove: Some(false),
+          target_sent_timestamp: Some(target_timestamp),
+          target_author_aci: Some(uuid),
+        }),
+        group_v2,
+        ..Default::default()
+      };
+
+      send(manager, recipient_from_thread(thread), timestamp, data_message, None).await?;
     }
     Cmd::DeleteMessage {
       thread,
@@ -1183,11 +1207,7 @@ async fn upload_attachments(
     })
     .collect();
 
-  let attachments: Result<Vec<_>, _> = manager
-    .upload_attachments(attachment_specs)
-    .await?
-    .into_iter()
-    .collect();
+  let attachments: Result<Vec<_>, _> = manager.upload_attachments(attachment_specs).await?.into_iter().collect();
 
   let attachments = attachments?;
   Ok(attachments)
