@@ -29,11 +29,19 @@ impl MultiLineString {
     }
   }
 
-  pub fn set_content(self: &mut Self, string: String) {
+  pub fn set_content(&mut self, string: String) {
     self.body = string;
     self.cached_lines = vec![];
     self.cached_width = 0;
     self.cached_length = 0;
+  }
+
+  pub fn insert(&mut self, index: usize, char: char) {
+    self.body.insert(self.body.byte_index(index), char);
+  }
+
+  pub fn remove(&mut self, index: usize) {
+    self.body.remove(self.body.byte_index(index));
   }
 
   // I hate handling utf-8

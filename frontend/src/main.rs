@@ -529,7 +529,7 @@ impl TextInput {
 
   fn insert_char(&mut self, char: char) {
     // some disgusting object-oriented blashphemy going on here
-    self.body.body.insert(self.cursor_index as usize, char);
+    self.body.insert(self.cursor_index as usize, char);
     self.cursor_index += 1;
   }
 
@@ -539,11 +539,11 @@ impl TextInput {
     }
 
     self.cursor_index -= 1;
-    self.body.body.remove(self.cursor_index as usize);
+    self.body.remove(self.cursor_index as usize);
   }
 
   fn clear(&mut self) {
-    self.body.body = "".to_string();
+    self.body.set_content("".to_string());
     self.cursor_index = 0;
   }
 }
@@ -1382,6 +1382,10 @@ trait MyStringUtils {
   fn shrink<T>(&self, width: T) -> String
   where
     T: Into<usize>;
+
+  fn byte_index<Int>(&self, char_idx: Int) -> usize
+  where
+    Int: Into<usize>;
 }
 
 impl MyStringUtils for String {
@@ -1401,6 +1405,18 @@ impl MyStringUtils for String {
       // fitted.push("...");
       return fitted;
     }
+  }
+
+  // some rare llm code
+  fn byte_index<Int>(&self, char_idx: Int) -> usize
+  where
+    Int: Into<usize>,
+  {
+    self
+      .char_indices()
+      .nth(char_idx.into())
+      .map(|(i, _)| i)
+      .unwrap_or_else(|| self.len())
   }
 }
 
