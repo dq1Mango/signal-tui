@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Built With Ratatui](https://img.shields.io/badge/Built_With_Ratatui-000?logo=ratatui&logoColor=fff)](https://ratatui.rs/) ![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white) [![License Badge]](https://img.shields.io/crates/l/ratatui?style=flat-square&color=1370D3)
+[![Built With Ratatui](https://img.shields.io/badge/Built_With_Ratatui-000?logo=ratatui&logoColor=fff)](https://ratatui.rs/) ![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white) ![License](https://img.shields.io/crates/l/ratatui?style=flat-square&color=1370D3)
 
 </div>
 An unnofical minimal terminal interface for the Signal messaging service
