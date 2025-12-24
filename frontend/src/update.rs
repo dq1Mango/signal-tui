@@ -106,13 +106,13 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
     },
 
     Mode::Normal => match key.code {
-      KeyCode::Char('j') => Some(Action::Scroll(-1)),
-      KeyCode::Char('k') => Some(Action::Scroll(1)),
-      KeyCode::Char('d') => Some(Action::Scroll(-10)),
-      KeyCode::Char('u') => Some(Action::Scroll(10)),
+      KeyCode::Char('j') | KeyCode::Down => Some(Action::Scroll(1)),
+      KeyCode::Char('k') | KeyCode::Up => Some(Action::Scroll(-1)),
+      KeyCode::Char('d') => Some(Action::Scroll(10)),
+      KeyCode::Char('u') => Some(Action::Scroll(-10)),
 
       KeyCode::Char('i') => Some(Action::SetMode(Mode::Insert)),
-      KeyCode::Char('h') => Some(Action::SetMode(Mode::Groups)),
+      KeyCode::Char('h') | KeyCode::Left => Some(Action::SetMode(Mode::Groups)),
       KeyCode::Char('o') => Some(Action::SetMode(Mode::MessageOptions)),
 
       KeyCode::Char('S') => Some(Action::SetFocus(Focus::Settings)),
@@ -124,17 +124,17 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
     },
 
     Mode::Groups => match key.code {
-      KeyCode::Char('j') => Some(Action::ScrollGroup(1)),
-      KeyCode::Char('k') => Some(Action::ScrollGroup(-1)),
+      KeyCode::Char('j') | KeyCode::Down => Some(Action::ScrollGroup(1)),
+      KeyCode::Char('k') | KeyCode::Up => Some(Action::ScrollGroup(-1)),
 
-      KeyCode::Char('l') => Some(Action::SetMode(Mode::Normal)),
+      KeyCode::Char('l') | KeyCode::Right => Some(Action::SetMode(Mode::Normal)),
 
       KeyCode::Char('q') => Some(Action::Quit),
       _ => None,
     },
 
     Mode::Settings => match key.code {
-      KeyCode::Char('l') => Some(Action::SetMode(Mode::Normal)),
+      KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
 
       KeyCode::Char('q') => Some(Action::Quit),
       _ => None,
@@ -143,8 +143,10 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
     Mode::MessageOptions => match key.code {
       KeyCode::Char('q') => Some(Action::Quit),
       KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
-      KeyCode::Char('j') => Some(Action::ScrollOptions(1)),
-      KeyCode::Char('k') => Some(Action::ScrollOptions(-1)),
+
+      KeyCode::Char('j') | KeyCode::Down => Some(Action::ScrollOptions(1)),
+      KeyCode::Char('k') | KeyCode::Up => Some(Action::ScrollOptions(-1)),
+
       KeyCode::Enter => Some(Action::PickOption),
       _ => None,
     },
