@@ -2,6 +2,12 @@
 resolver = "3"
 members = ["frontend", "database"]
 
-
 [patch.crates-io]
+# goofy patch i forget why is needed (ask presage)
 curve25519-dalek = { git = 'https://github.com/signalapp/curve25519-dalek', tag = 'signal-curve25519-4.1.3' }
+
+[profile.release]
+codegen-units = 1 
+lto = true 
+opt-level = "s" # Prioritizes small binary size. Use `3` if you prefer speed.
+strip = true # ayo???

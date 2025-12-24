@@ -28,8 +28,13 @@ The binary will be ./target/release/signal-tui
 
 ## Usage
 
-- neovim-esque modal interface
-- i / esc to toggle between "normal" (move around) and "insert" (type messages)
-- j / k / h / l or arrow keys to navigate in normal mode
-- o to enter open options on selected message (reply, edit, etc...)
+* on first startup scan the qr code to link device to your signal account 
+(maybe one day u can register an account but that day is not today)
+
+* neovim-esque modal interface
+* i / esc to toggle between "normal" (move around) and "insert" (type messages)
+* j / k / h / l or arrow keys to navigate in normal mode
+* o to enter open options on selected message (reply, edit, etc...)
+
+[![Built With Ratatui](https://img.shields.io/badge/Built_With_Ratatui-000?logo=ratatui&logoColor=fff)](https://ratatui.rs/)
     
