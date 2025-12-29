@@ -366,6 +366,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
 
       let reactions = if let Some(data_message::Reaction { emoji: Some(emoji), .. }) = reaction {
+        Logger::log("it works like this");
         vec![Reaction {
           emoji: emoji.chars().nth(0)?,
           author: content.metadata.sender.raw_uuid(),
@@ -516,6 +517,40 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       } else {
         Logger::log(format!("didnt find chat with thread: {:#?}", thread));
       }
+    }
+
+    ContentBody::DataMessage(DataMessage {
+      body: None,
+      reaction: Some(reaction),
+      ..
+    }) => {
+      // some flex-tape on the thread derivation
+      if let Thread::Contact(uuid) = thread {
+        if uuid == model.account.uuid {
+          thread = Thread::Contact(content.metadata.destination.raw_uuid());
+        }
+      }
+
+      if let data_message::Reaction {
+        emoji: Some(emoji),
+        target_sent_timestamp: Some(target_ts),
+        ..
+      } = reaction
+      {
+        let reaction = Reaction {
+          emoji: emoji.chars().nth(0)?,
+          author: content.metadata.sender.raw_uuid(),
+        };
+
+        let Some(chat) = model.find_chat(&thread) else {
+          Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+          return None;
+        };
+
+        chat.upsert_reaction(reaction, target_ts);
+      }
+
+      // insert_message(model, data, thread, ts, mine)
     }
     _ => {}
   }

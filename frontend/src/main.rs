@@ -796,6 +796,16 @@ impl Message {
     // .wrap(Wrap { trim: true })
   }
 
+  fn upsert_reaction(&mut self, new_reaction: Reaction) {
+    for reaction in &mut self.reactions {
+      if reaction.author == new_reaction.author {
+        reaction.emoji = new_reaction.emoji
+      }
+    }
+
+    self.reactions.push(new_reaction)
+  }
+
   fn is_mine(&self) -> bool {
     if let Metadata::MyMessage(_) = self.metadata {
       true
@@ -1180,6 +1190,12 @@ impl Chat {
         // however we will go on with our days ... ?
         self.location.index += 1;
       }
+    }
+  }
+
+  fn upsert_reaction(&mut self, reaction: Reaction, target_timestamp: u64) {
+    if let Some(message) = self.find_message(target_timestamp) {
+      message.upsert_reaction(reaction)
     }
   }
 
