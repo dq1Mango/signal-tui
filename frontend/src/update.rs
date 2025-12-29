@@ -323,7 +323,7 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
 }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
-  // Logger::log(format!("DataMessage: {:#?}", content.clone()));
+  Logger::log(format!("DataMessage: {:#?}", content.clone()));
 
   let ts = content.timestamp();
   let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
@@ -425,65 +425,60 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
       // insert_message(model, data, thread, ts, mine)
     }
-    ContentBody::SynchronizeMessage(data) => {
-      match data {
-        SyncMessage {
-          sent:
-            Some(Sent {
-              message: Some(DataMessage {
-                body: Some(body), quote, ..
-              }),
-              ..
-            }),
-          // read: read,
+    ContentBody::SynchronizeMessage(SyncMessage {
+      sent:
+        Some(Sent {
+          message: Some(DataMessage {
+            body: Some(body), quote, ..
+          }),
           ..
-        } => {
-          let read_by = Vec::new();
-          // for receipt in read {
-          //   let Some(aci) = receipt.sender_aci else {
-          //     continue;
-          //   };
-          //   let Some(timestamp) = receipt.timestamp else { continue };
-          //   let Some(aci) = ServiceId::parse_from_service_id_string(&aci) else {
-          //     Logger::log("plz no".to_string());
-          //     return None;
-          //   };
-          //   read_by.push(Receipt {
-          //     sender: aci.raw_uuid(),
-          //     timestamp: DateTime::from_timestamp_millis(timestamp as i64).expect("i think i gotta ditch chrono"),
-          //   });
-          // }
-          let metadata = Metadata::MyMessage(MyMessage {
-            sent: timestamp,
-            delivered_to: read_by.clone(),
-            read_by: read_by,
-          });
+        }),
+      // read: read,
+      ..
+    }) => {
+      let read_by = Vec::new();
+      // for receipt in read {
+      //   let Some(aci) = receipt.sender_aci else {
+      //     continue;
+      //   };
+      //   let Some(timestamp) = receipt.timestamp else { continue };
+      //   let Some(aci) = ServiceId::parse_from_service_id_string(&aci) else {
+      //     Logger::log("plz no".to_string());
+      //     return None;
+      //   };
+      //   read_by.push(Receipt {
+      //     sender: aci.raw_uuid(),
+      //     timestamp: DateTime::from_timestamp_millis(timestamp as i64).expect("i think i gotta ditch chrono"),
+      //   });
+      // }
+      let metadata = Metadata::MyMessage(MyMessage {
+        sent: timestamp,
+        delivered_to: read_by.clone(),
+        read_by: read_by,
+      });
 
-          let Some(chat) = model.find_chat(&thread) else {
-            Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
-            return None;
-          };
+      let Some(chat) = model.find_chat(&thread) else {
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+        return None;
+      };
 
-          // for uuid in chat.participants.members {
-          //   if !metadata.read_by.contains(&(uuid, _)) {
-          //     metadata.read_by.push((uuid, None));
-          //     metadata.delivered_to.push((uuid, None));
-          //   }
-          // }
+      // for uuid in chat.participants.members {
+      //   if !metadata.read_by.contains(&(uuid, _)) {
+      //     metadata.read_by.push((uuid, None));
+      //     metadata.delivered_to.push((uuid, None));
+      //   }
+      // }
 
-          let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
+      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
 
-          let message = Message {
-            body: MultiLineString::new(&body),
-            metadata,
-            quote,
-            reactions: vec![],
-          };
+      let message = Message {
+        body: MultiLineString::new(&body),
+        metadata,
+        quote,
+        reactions: vec![],
+      };
 
-          chat.insert_message(message);
-        }
-        _ => {}
-      }
+      chat.insert_message(message);
     }
     ContentBody::ReceiptMessage(receipt_message) => {
       if let Some(chat) = model.find_chat(&thread) {
@@ -523,7 +518,21 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       body: None,
       reaction: Some(reaction),
       ..
+    })
+    | ContentBody::SynchronizeMessage(SyncMessage {
+      sent:
+        Some(Sent {
+          message: Some(DataMessage {
+            body: None,
+            reaction: Some(reaction),
+            ..
+          }),
+          ..
+        }),
+      ..
     }) => {
+      Logger::log("reacting");
+
       // some flex-tape on the thread derivation
       if let Thread::Contact(uuid) = thread {
         if uuid == model.account.uuid {

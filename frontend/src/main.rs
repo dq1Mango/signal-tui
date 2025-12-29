@@ -701,12 +701,9 @@ impl Message {
       .border_set(border::THICK)
       .border_style(Style::default().fg(color));
 
-    let displayed_metadata = Line::from(vec![
-      Span::from(self.format_duration()),
-      Span::from(" "),
-      // yeah maybe i should make these bofa deez functions return Spans buttttttt idc
-      self.format_delivered_status(num_members),
-    ]);
+    let mut displayed_metadata = Line::from(Span::from(self.format_duration()));
+
+    let reactions = self.format_reactions();
 
     match &self.metadata {
       Metadata::NotMyMessage(meta) => {
@@ -722,9 +719,16 @@ impl Message {
         };
         block = block.title_top(Line::from(name).left_aligned());
         block = block.title_bottom(displayed_metadata.left_aligned());
+
+        block = block.title_bottom(Line::from(reactions).right_aligned())
       }
       Metadata::MyMessage(_) => {
+        displayed_metadata.push_span(Span::from(" "));
+        displayed_metadata.push_span(self.format_delivered_status(num_members));
+
         block = block.title_bottom(displayed_metadata.right_aligned());
+
+        block = block.title_bottom(Line::from(reactions).left_aligned())
       }
     }
 
@@ -748,14 +752,6 @@ impl Message {
       }
     }
 
-    // "allign" the chat to the right if it was sent by you
-    // TODO: should add setting to toggle this behavior
-
-    // shift message to the right if it is ur own
-    if self.is_mine() {
-      my_area.x += area.width - my_area.width;
-    }
-
     let mut lines: Vec<Line> = Vec::new();
 
     if self.quote.is_some() != quoted.is_some() {
@@ -767,7 +763,7 @@ impl Message {
         FindMsgResult::Found(msg) => msg.quote_lines(my_area.width as usize - 2, contacts),
         FindMsgResult::NotLoaded => {
           // 29 is length of this "error" message
-          my_area.width = cmp::max(29, my_area.width);
+          my_area.width = cmp::max(cmp::min(29, availible_width), my_area.width);
           vec![
             Line::from("Message not loaded..."),
             Line::from("scroll up to see this message"),
@@ -775,7 +771,7 @@ impl Message {
           ]
         }
         FindMsgResult::NotExist => {
-          my_area.width = cmp::max(30, my_area.width);
+          my_area.width = cmp::max(cmp::min(30, availible_width), my_area.width);
           vec![
             Line::from("Message not found..."),
             Line::from("i suspect smthn has gone wrong"),
@@ -791,6 +787,15 @@ impl Message {
     for yap in vec_lines {
       lines.push(Line::from(yap));
     }
+    // "allign" the chat to the right if it was sent by you
+    // TODO: should add setting to toggle this behavior
+
+    // shift message to the right if it is ur own
+    if self.is_mine() {
+      my_area.x += area.width - my_area.width;
+    }
+
+    // Logger::log(format!("drawing message here: {:?}", my_area));
 
     Paragraph::new(lines).block(block).render(my_area, buf)
     // .wrap(Wrap { trim: true })
@@ -799,7 +804,8 @@ impl Message {
   fn upsert_reaction(&mut self, new_reaction: Reaction) {
     for reaction in &mut self.reactions {
       if reaction.author == new_reaction.author {
-        reaction.emoji = new_reaction.emoji
+        reaction.emoji = new_reaction.emoji;
+        return;
       }
     }
 
@@ -893,6 +899,16 @@ impl Message {
     lines.push(Line::from("-".repeat(width)));
 
     lines
+  }
+
+  fn format_reactions(&self) -> String {
+    let mut output = String::with_capacity(self.reactions.len() * 2);
+    for reaction in &self.reactions {
+      output.push(reaction.emoji);
+      output.push_str(" ");
+    }
+
+    output
   }
 
   fn height(&mut self, width: u16) -> u16 {
@@ -1373,11 +1389,19 @@ impl Chat {
 
         spawner.spawn(Cmd::ReactToThread {
           thread: self.thread.clone(),
-          reaction: data,
-          timestamp: ts,
+          reaction: data.clone(),
+          timestamp: Utc::now().timestamp_millis() as u64,
           target_timestamp: ts,
           author_uuid: uuid,
         });
+
+        self
+          .find_message(ts)
+          .expect("no way these come back to bite me")
+          .upsert_reaction(Reaction {
+            emoji: data.chars().nth(0).unwrap(),
+            author: spawner.self_uuid,
+          });
       }
       TextInputMode::Editing => {
         let target_message = self.find_message(self.message_options.timestamp).unwrap();

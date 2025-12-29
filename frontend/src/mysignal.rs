@@ -52,6 +52,8 @@ pub struct SignalSpawner {
   contact_requests: Requester<Result<Vec<Contact>, Error<SqliteStoreError>>>,
   group_requests: Requester<Vec<(GroupMasterKeyBytes, Group)>>,
   profile_requests: mpsc::UnboundedSender<ProfileRequest>,
+
+  pub self_uuid: Uuid,
 }
 
 impl SignalSpawner {
@@ -90,13 +92,14 @@ impl SignalSpawner {
   // }
 
   pub fn new(mut manager: MyManager, output: mpsc::UnboundedSender<Action>) -> Self {
+    let uuid = manager.registration_data().service_ids.aci;
+
     let (send, mut recv) = mpsc::unbounded_channel::<Cmd>();
 
     // i feel like the compiler should be able to figure out these types
     let (contacts_sender, mut contact_requests) =
       mpsc::unbounded_channel::<oneshot::Sender<Result<Vec<Contact>, Error<SqliteStoreError>>>>();
-    let (groups_sender, mut group_requests) =
-      mpsc::unbounded_channel::<oneshot::Sender<Vec<(GroupMasterKeyBytes, Group)>>>();
+    let (groups_sender, mut group_requests) = mpsc::unbounded_channel::<oneshot::Sender<Vec<(GroupMasterKeyBytes, Group)>>>();
 
     let (profile_sender, mut profile_requests) = mpsc::unbounded_channel();
 
@@ -203,6 +206,8 @@ impl SignalSpawner {
       contact_requests: contacts_sender,
       profile_requests: profile_sender,
       group_requests: groups_sender,
+
+      self_uuid: uuid,
     }
   }
 
