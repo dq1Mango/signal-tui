@@ -1,5 +1,5 @@
 use crossterm::execute;
-use presage::proto::data_message::Quote;
+use presage::proto::data_message::{self, Quote};
 use presage::proto::sync_message::Sent;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -335,7 +335,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
   match content.body {
     ContentBody::DataMessage(DataMessage {
-      body: Some(body), quote, ..
+      body: Some(body),
+      quote,
+      reaction,
+      ..
     }) => {
       // Logger::log(format!("DataMessage: {:#?}", body.clone()));
       // some flex-tape on the thread derivation
@@ -362,10 +365,20 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
       let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
 
+      let reactions = if let Some(data_message::Reaction { emoji: Some(emoji), .. }) = reaction {
+        vec![Reaction {
+          emoji: emoji.chars().nth(0)?,
+          author: content.metadata.sender.raw_uuid(),
+        }]
+      } else {
+        vec![]
+      };
+
       let message = Message {
         body: MultiLineString::new(&body),
         metadata,
         quote,
+        reactions,
       };
 
       let Some(chat) = model.find_chat(&thread) else {
@@ -463,6 +476,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
             body: MultiLineString::new(&body),
             metadata,
             quote,
+            reactions: vec![],
           };
 
           chat.insert_message(message);

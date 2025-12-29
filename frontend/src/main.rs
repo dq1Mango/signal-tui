@@ -23,6 +23,7 @@ use presage::{
     Profile,
     configuration::SignalServers,
     prelude::{ProfileKey, Uuid},
+    proto,
     zkgroup::GroupMasterKeyBytes,
   },
   model::groups::Group,
@@ -144,10 +145,17 @@ pub enum Metadata {
 }
 
 #[derive(Debug, Clone)]
+pub struct Reaction {
+  emoji: char,
+  author: Uuid,
+}
+
+#[derive(Debug, Clone)]
 pub struct Message {
   body: MultiLineString,
   metadata: Metadata,
   quote: Option<u64>,
+  reactions: Vec<Reaction>,
 }
 
 #[derive(Debug, Clone)]
@@ -693,7 +701,12 @@ impl Message {
       .border_set(border::THICK)
       .border_style(Style::default().fg(color));
 
-    let mut bottom_title = Line::from(self.format_duration());
+    let displayed_metadata = Line::from(vec![
+      Span::from(self.format_duration()),
+      Span::from(" "),
+      // yeah maybe i should make these bofa deez functions return Spans buttttttt idc
+      self.format_delivered_status(num_members),
+    ]);
 
     match &self.metadata {
       Metadata::NotMyMessage(meta) => {
@@ -708,16 +721,14 @@ impl Message {
           None => "smthns borken".to_string(),
         };
         block = block.title_top(Line::from(name).left_aligned());
+        block = block.title_bottom(displayed_metadata.left_aligned());
       }
       Metadata::MyMessage(_) => {
-        bottom_title.push_span(Span::from(" "));
-        bottom_title.push_span(self.format_delivered_status(num_members));
+        block = block.title_bottom(displayed_metadata.right_aligned());
       }
     }
 
-    block = block.title_bottom(bottom_title.right_aligned());
-
-    // this ugly shadow cost me a good 15 mins of my life ... but im not changing it
+    // im rly good at naming variables
     let mut my_area = area.clone();
     let availible_width = (area.width as f32 * settings.message_width_ratio + 0.5) as u16;
     my_area.width = availible_width;
@@ -755,6 +766,8 @@ impl Message {
       let reply_lines = match result {
         FindMsgResult::Found(msg) => msg.quote_lines(my_area.width as usize - 2, contacts),
         FindMsgResult::NotLoaded => {
+          // 29 is length of this "error" message
+          my_area.width = cmp::max(29, my_area.width);
           vec![
             Line::from("Message not loaded..."),
             Line::from("scroll up to see this message"),
@@ -762,6 +775,7 @@ impl Message {
           ]
         }
         FindMsgResult::NotExist => {
+          my_area.width = cmp::max(30, my_area.width);
           vec![
             Line::from("Message not found..."),
             Line::from("i suspect smthn has gone wrong"),
@@ -1318,6 +1332,7 @@ impl Chat {
           // what happened
           metadata: Metadata::new_mine(ts, self.display.num_members),
           quote: quote_stamp,
+          reactions: vec![],
         });
 
         // scroll down if we r at the bottom (this logic is def repeated and shouldnt be)
