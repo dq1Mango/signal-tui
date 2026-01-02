@@ -1636,17 +1636,6 @@ fn one_by_two_area(x: u16, y: u16) -> Rect {
 }
 
 fn render_qr(qr: QrCode, mut area: Rect, buf: &mut Buffer) {
-  let needed_size = qr.size() as u16 + 2;
-
-  // dont render qr-code if we dont have enough space
-  if needed_size > area.height || needed_size * 2 > area.width {
-    Line::from("Window too small to render qr code")
-      .style(Style::default().fg(Color::Red))
-      .centered()
-      .render(area, buf);
-    return;
-  }
-
   let block = "██";
   let pad_style = Style::default().fg(Color::White);
 
@@ -1697,19 +1686,25 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
 
       match qr {
         Ok(qr) => {
-          size = qr.size() as u16;
-          let qr_area = center_div(
-            area,
-            Constraint::Length((size + 2) * 2),
-            Constraint::Length(size + 2),
-          );
+          size = qr.size() as u16 + 2;
+          let qr_area = center_div(area, Constraint::Length(size * 2), Constraint::Length(size));
+
+          let needed_size = qr.size() as u16 + 2;
+
+          // dont render qr-code if we dont have enough space
+          if needed_size + 3 > area.height || needed_size * 2 > area.width {
+            Line::from("Window too small to render qr code")
+              .style(Style::default().fg(Color::Red))
+              .centered()
+              .render(qr_area, buf);
+            return;
+          }
 
           let mut instruction_area = qr_area.clone();
           instruction_area.y -= 1;
           Line::from("scan the qr-code to link your account")
             .centered()
             .render(instruction_area, buf);
-
           area.x = qr_area.x;
           area.width = qr_area.width;
           area.y = qr_area.height + qr_area.y;
@@ -1774,9 +1769,8 @@ fn draw_loading_sreen(state: &LoadState, frame: &mut Frame) {
   // these should only happen like immediately on start up
   if let Some(raw_duration) = state.raw_duration {
     if let Some(latest_timestamp) = state.latest_timestamp {
-      let formatted_duration = format_duration_fancy(
-        &DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap(),
-      );
+      let formatted_duration =
+        format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
 
       let partial_duration = Utc::now().timestamp_millis() as u64 - latest_timestamp;
 
