@@ -622,7 +622,9 @@ impl MessageOptions {
     let fixed_width = 16;
 
     let options = match message.metadata {
-      Metadata::NotMyMessage(_) => vec!["  Reply", "  React", "  Copy", "  Info"],
+      Metadata::NotMyMessage(_) => {
+        vec!["  Reply", "  React", "  Copy", "  Info"]
+      }
       Metadata::MyMessage(_) => vec!["  Reply", "  React", "  Edit", "  Copy", "  Info", "  Delete"],
     };
     let options: Vec<Vec<char>> = options.iter().map(|s| s.chars().collect()).collect();
@@ -1497,49 +1499,28 @@ fn one_by_two_area(x: u16, y: u16) -> Rect {
 }
 
 fn render_qr(qr: QrCode, mut area: Rect, buf: &mut Buffer) {
+  let needed_size = qr.size() as u16 + 2;
+
+  // dont render qr-code if we dont have enough space
+  if needed_size > area.height || needed_size * 2 > area.width {
+    Span::style("Error: Window too small to render qr code".into(), Style::default()).render(area, buf);
+    return;
+  }
+
   let block = "██";
-  let size = qr.size() as u16;
   let pad_style = Style::default().fg(Color::White);
 
-  Span::style(block.repeat(area.width as usize).into(), pad_style).render(
-    Rect {
-      x: area.x,
-      y: area.y,
-      width: area.width,
-      height: 1,
-    },
-    buf,
-  );
-
-  Span::style(block.repeat(area.width as usize).into(), pad_style).render(
-    Rect {
-      x: area.x,
-      y: area.y + area.height - 1,
-      width: area.width,
-      height: 1,
-    },
-    buf,
-  );
-
-  Span::style(block.repeat(area.height as usize).into(), pad_style).render(
-    Rect {
-      x: area.x,
-      y: area.y,
-      width: 1,
-      height: area.height,
-    },
-    buf,
-  );
-
-  Span::style(block.repeat(area.height as usize).into(), pad_style).render(
-    Rect {
-      x: area.x + area.width - 1,
-      y: area.y,
-      width: 1,
-      height: area.height,
-    },
-    buf,
-  );
+  for y in 0..area.height {
+    Span::style(block.repeat(area.width as usize).into(), pad_style).render(
+      Rect {
+        x: area.x,
+        y: area.y + y,
+        width: area.width,
+        height: 1,
+      },
+      buf,
+    );
+  }
 
   area.x += 2;
   area.y += 1;
@@ -1560,8 +1541,6 @@ fn render_qr(qr: QrCode, mut area: Rect, buf: &mut Buffer) {
 }
 
 fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
-  let block = "██";
-
   let area = frame.area();
   let buf = frame.buffer_mut();
 
@@ -1575,24 +1554,30 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
 
       match qr {
         Ok(qr) => {
-          size = qr.size() as u16 + 2;
+          size = qr.size() as u16;
           let qr_area = center_div(area, Constraint::Length((size + 2) * 2), Constraint::Length(size + 2));
+
+          area.x = qr_area.x;
+          area.width = qr_area.width;
+          area.y = qr_area.height + qr_area.y;
+          area.height = area.height - area.y;
+
           render_qr(qr, qr_area, buf);
         }
 
         Err(_) => Line::from("Error generating qrcode (tough shit pal)").render(area, buf),
       }
 
-      // let raw_url = vec![Line::from("Or visit the url like a caveman:"), Line::from(url.to_string())];
-      // Paragraph::new(raw_url).render(
-      //   Rect {
-      //     x: area.x,
-      //     y: area. y,
-      //     width: area.width,
-      //     height: area.height - size,
-      //   },
-      //   buf,
-      // );
+      let raw_url = vec![Line::from("Or visit the url like a caveman:"), Line::from(url.to_string())];
+      Paragraph::new(raw_url).render(
+        area, // Rect {
+        //   x: area.x,
+        //   y: area. y,
+        //   width: area.width,
+        //   height: area.height - size,
+        // },
+        buf,
+      );
     }
 
     None => Line::from("Generating Linking Url ...").render(area, buf),
