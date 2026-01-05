@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-use crate::MyStringUtils;
+use crate::{MyStringUtils, logger::Logger};
 
 #[derive(Debug, Default, Clone)]
 pub struct MultiLineString {
@@ -19,6 +19,21 @@ fn string_from_chars(chars: &[char]) -> String {
   string
 }
 
+fn replace_dangerous_char(input: char) -> char {
+  match input {
+    '\t' => {
+      Logger::log("found one");
+      ' '
+    }
+    '\r' => ' ',
+    _ => input,
+  }
+}
+
+fn parse_dangerous_chars(input: String) -> String {
+  input.chars().map(|c| replace_dangerous_char(c)).collect()
+}
+
 impl MultiLineString {
   pub fn new(str: &str) -> Self {
     Self {
@@ -30,14 +45,16 @@ impl MultiLineString {
   }
 
   pub fn set_content(&mut self, string: String) {
-    self.body = string;
+    self.body = parse_dangerous_chars(string);
     self.cached_lines = vec![];
     self.cached_width = 0;
     self.cached_length = 0;
   }
 
   pub fn insert(&mut self, index: usize, char: char) {
-    self.body.insert(self.body.byte_index(index), char);
+    self
+      .body
+      .insert(self.body.byte_index(index), replace_dangerous_char(char));
   }
 
   pub fn remove(&mut self, index: usize) {
@@ -54,36 +71,42 @@ impl MultiLineString {
     // let availible_width = (term_width as f32 * settings.message_width_ratio + 0.5) as usize;
     let availible_width = width as usize;
 
-    // this .split() is a little sketchy but it works mostly
-    for yap in self.body.split(" ") {
-      let yap = yap.chars();
-      let mut length = yap.clone().count();
+    for known_line in self.body.split("\n") {
+      // if known_line == "" {
+      //   lines.push("".to_string());
+      //   continue;
+      // }
+      // this .split() is a little sketchy but it works mostly
+      for yap in known_line.split(" ") {
+        let yap = yap.chars();
+        let mut length = yap.clone().count();
 
-      if coldex + length <= availible_width || length == 0 {
-        new_line.push_str(yap.as_str());
-        new_line.push_str(" ");
-        coldex += length + 1;
-      } else {
-        // INCOMPLETE LOGIC!!!
-        if new_line != "" {
-          lines.push(new_line.clone());
-        }
-
-        let mut index = 0;
-
-        let yap: Vec<_> = yap.collect();
-        while length >= availible_width {
-          lines.push(string_from_chars(&yap[index..index + availible_width]));
-          length -= availible_width;
-          index += availible_width;
-        }
-
-        new_line = string_from_chars(&yap[index..]);
-        coldex = new_line.len();
-
-        if new_line.len() > 0 {
+        if coldex + length <= availible_width || length == 0 {
+          new_line.push_str(yap.as_str());
           new_line.push_str(" ");
-          coldex += 1;
+          coldex += length + 1;
+        } else {
+          // INCOMPLETE LOGIC!!!
+          if new_line != "" {
+            lines.push(new_line.clone());
+          }
+
+          let mut index = 0;
+
+          let yap: Vec<_> = yap.collect();
+          while length >= availible_width {
+            lines.push(string_from_chars(&yap[index..index + availible_width]));
+            length -= availible_width;
+            index += availible_width;
+          }
+
+          new_line = string_from_chars(&yap[index..]);
+          coldex = new_line.len();
+
+          if new_line.len() > 0 {
+            new_line.push_str(" ");
+            coldex += 1;
+          }
         }
       }
     }
