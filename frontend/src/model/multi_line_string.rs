@@ -37,7 +37,7 @@ fn parse_dangerous_chars(input: String) -> String {
 impl MultiLineString {
   pub fn new(str: &str) -> Self {
     Self {
-      body: str.to_string(),
+      body: parse_dangerous_chars(str.to_string()),
       cached_lines: vec!["".to_string()],
       cached_width: 0,
       cached_length: 0,
@@ -64,14 +64,14 @@ impl MultiLineString {
   // I hate handling utf-8
   fn calc_lines(&self, width: u16) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
-    let mut new_line = String::from("");
 
-    // collumn index
-    let mut coldex = 0;
-    // let availible_width = (term_width as f32 * settings.message_width_ratio + 0.5) as usize;
     let availible_width = width as usize;
 
     for known_line in self.body.split("\n") {
+      // println!("heres the line: {}", &known_line);
+      let mut new_line = String::from("");
+      // collumn index
+      let mut coldex = 0;
       // if known_line == "" {
       //   lines.push("".to_string());
       //   continue;
@@ -86,6 +86,7 @@ impl MultiLineString {
           new_line.push_str(" ");
           coldex += length + 1;
         } else {
+          // println!("shouldnt go here");
           // INCOMPLETE LOGIC!!!
           if new_line != "" {
             lines.push(new_line.clone());
@@ -109,11 +110,14 @@ impl MultiLineString {
           }
         }
       }
+
+      // println!("can i see this?");
+
+      // remove the trailing ' '
+      new_line.pop();
+      lines.push(new_line);
     }
 
-    // remove the trailing ' '
-    new_line.pop();
-    lines.push(new_line);
     lines
   }
 

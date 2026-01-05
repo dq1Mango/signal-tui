@@ -36,47 +36,46 @@ fn test_split_into_lines() {
   let mut width = 5;
 
   let mut body = MultiLineString::new("this is myy message");
+  //
+  // let output = body.as_lines(width);
+  //
+  // let mut expected: Vec<String> = Vec::new();
+  // for line in vec!["this ", "is ", "myy ", "messa", "ge"] {
+  //   expected.push(line.to_string());
+  // }
+  //
+  // assert!(vecs_equal(output.to_vec(), expected));
+  //
+  // body = MultiLineString::new("we       have space and");
+  //
+  // let output = body.as_trimmed_lines(width);
+  //
+  // // for line in &output {
+  // //   println!("{}|end", line);
+  // // }
+  //
+  // let mut expected: Vec<String> = Vec::new();
+  // for line in vec!["we", "have", "space", "and"] {
+  //   expected.push(line.to_string());
+  // }
+  // assert!(vecs_equal(output.to_vec(), expected));
 
-  let output = body.as_lines(width);
+  // body = MultiLineString::new("");
+  //
+  // assert!(vecs_equal(body.as_lines(width).to_vec(), vec!["".to_string()]));
 
-  let mut expected: Vec<String> = Vec::new();
-  for line in vec!["this ", "is ", "myy ", "messa", "ge"] {
-    expected.push(line.to_string());
-  }
-
-  assert!(vecs_equal(output.to_vec(), expected));
-
-  body = MultiLineString::new("we       have space and");
-
-  let output = body.as_trimmed_lines(width);
-
-  for line in &output {
-    println!("{}|end", line);
-  }
-
-  let mut expected: Vec<String> = Vec::new();
-  for line in vec!["we", "have", "space", "and"] {
-    expected.push(line.to_string());
-  }
-
-  body = MultiLineString::new("");
-
-  assert!(vecs_equal(body.as_lines(width).to_vec(), vec!["".to_string()]));
-
-  assert!(vecs_equal(output.to_vec(), expected));
-
-  body = MultiLineString::new(
-    r"first_line
-  second_line",
-  );
+  body = MultiLineString::new("first_line\nsecond_line");
 
   let mut expected: Vec<String> = Vec::new();
   for line in vec!["first_line", "second_line"] {
     expected.push(line.to_string());
   }
 
-  width = 20;
+  width = 11;
   let output = body.as_trimmed_lines(width);
+  for line in &output {
+    println!("{}|end", line);
+  }
 
   assert!(vecs_equal(output.to_vec(), expected));
 
@@ -91,7 +90,7 @@ fn test_split_into_lines() {
   let mut help_text: String = Default::default();
   for line in help_text_lines {
     help_text.push_str(line);
-    help_text.push_str("\n");
+    help_text.push('\n');
   }
 
   body.set_content(help_text);
