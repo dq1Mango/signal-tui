@@ -1014,7 +1014,8 @@ impl Chat {
     Chat {
       thread: thread,
       display,
-      messages: Vec::new(),
+      // start with a filler message to not out of index
+      messages: vec![Message::filler()],
       loaded_from: Utc::now(),
       text_input: TextInput::default(),
       location: Location::zero(),
@@ -1198,7 +1199,15 @@ impl Chat {
   }
 
   fn insert_message(&mut self, message: Message) {
-    // let new_timestamp = message.timestamp();
+    // remove the filler message if we are the first message being added
+    if self.messages.len() == 1 {
+      let maybe_filler = &self.messages[0];
+      if let Metadata::InfoMessage(_) = maybe_filler.metadata {
+        if maybe_filler.body.body == Message::filler().body.body {
+          self.messages.remove(0);
+        }
+      }
+    }
 
     let timestamp = message.ts();
     let mut i = self.messages.len();
@@ -1942,7 +1951,7 @@ async fn real_main() -> anyhow::Result<()> {
 
   // load some initial messages just in case
   for chat in &mut model.chats {
-    if chat.messages.len() < 1 {
+    if chat.messages.len() <= 1 {
       chat.load_more_messages(&spawner, TimeDelta::try_hours(2).unwrap());
     }
   }
