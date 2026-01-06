@@ -48,7 +48,7 @@ use ratatui::{
   style::{Color, Modifier, Style, Stylize},
   symbols::border,
   text::{Line, Span},
-  widgets::{Block, Gauge, Paragraph, Widget},
+  widgets::{Block, Gauge, Padding, Paragraph, Widget},
 };
 
 use chrono::{DateTime, TimeDelta, Utc};
@@ -2037,19 +2037,26 @@ async fn main() {
 //   }
 // }
 fn draw_help_popup(area: Rect, buf: &mut Buffer) {
-  let width = 40;
+  let width = 30;
+  let height = 15;
+  let padding = 1;
 
-  let area = center_div(area, Constraint::Length(width), Constraint::Length(20));
+  let area = center_div(area, Constraint::Length(width), Constraint::Length(height));
 
   // let area = pad_with_border(Color::Reset, area, buf);
 
   let width = width - 2;
 
   let keybindings = vec![
-    ("h / j / k / l", "Navigation"),
-    (" /  /  /  ", "Navigation"),
+    (" / k", "Scroll Up"),
+    (" / j", "Scroll Down"),
+    ("U", "Jump Up"),
+    ("D", "Jump Down"),
+    ("G", "Jump to Bottom"),
+    (" / h", "Groups"),
     ("I", "Insert Mode"),
     ("O", "Message Options"),
+    ("Q", "Quit"),
   ];
 
   let mut help_text_lines = vec![
@@ -2058,9 +2065,22 @@ fn draw_help_popup(area: Rect, buf: &mut Buffer) {
   ];
 
   for binding in keybindings {
-    let left_over_wdith = width as usize - binding.0.chars().count() - binding.1.chars().count();
+    let left_over_wdith = width as usize - binding.0.chars().count() - binding.1.chars().count() - (padding * 2);
 
-    help_text_lines.push(vec![Span::from(binding.0), Span::from("-".repeat(left_over_wdith)), Span::from(binding.1)].into());
+    help_text_lines.push(
+      vec![
+        Span::from(" ".repeat(padding)),
+        Span::from(binding.0),
+        Span::from("-".repeat(left_over_wdith)),
+        Span::from(binding.1),
+        Span::from(" ".repeat(padding)),
+      ]
+      .into(),
+    );
+  }
+
+  for _ in 0..(height as usize - help_text_lines.len()) {
+    help_text_lines.push(Line::from(full_line(" ".to_string(), width.into())))
   }
 
   let block = Block::bordered()
