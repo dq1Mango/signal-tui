@@ -2037,11 +2037,13 @@ async fn main() {
 //   }
 // }
 fn draw_help_popup(area: Rect, buf: &mut Buffer) {
-  let width = 30;
+  let width = 40;
 
-  let area = center_div(area, Constraint::Length(width), Constraint::Length(10));
+  let area = center_div(area, Constraint::Length(width), Constraint::Length(20));
 
-  let area = pad_with_border(Color::Reset, area, buf);
+  // let area = pad_with_border(Color::Reset, area, buf);
+
+  let width = width - 2;
 
   let keybindings = vec![
     ("h / j / k / l", "Navigation"),
@@ -2051,9 +2053,8 @@ fn draw_help_popup(area: Rect, buf: &mut Buffer) {
   ];
 
   let mut help_text_lines = vec![
-    Line::from("Key Binding Cheat Sheet").centered(),
-    Line::from(""),
-    Line::from("Normal Mode"),
+    Line::from(" ".repeat(width.into())),
+    Line::from(full_line("Normal Mode:".to_string(), width.into())),
   ];
 
   for binding in keybindings {
@@ -2062,7 +2063,15 @@ fn draw_help_popup(area: Rect, buf: &mut Buffer) {
     help_text_lines.push(vec![Span::from(binding.0), Span::from("-".repeat(left_over_wdith)), Span::from(binding.1)].into());
   }
 
-  Paragraph::new(help_text_lines).render(area, buf);
+  let block = Block::bordered()
+    .title(Line::from("Key Binding Cheat Sheet").centered())
+    .border_set(border::THICK)
+    .style(Style::default().fg(Color::Magenta));
+
+  Paragraph::new(help_text_lines)
+    .style(Style::default().fg(Color::Reset).bg(Color::Black))
+    .block(block)
+    .render(area, buf);
 }
 
 fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Settings) {

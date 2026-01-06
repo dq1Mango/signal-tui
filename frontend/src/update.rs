@@ -160,6 +160,8 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
 
     Mode::Help => match key.code {
       KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
+
+      KeyCode::Char('q') => Some(Action::Quit),
       _ => None,
     },
   }
