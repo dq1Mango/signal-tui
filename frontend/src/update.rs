@@ -102,14 +102,6 @@ pub async fn handle_crossterm_events(tx: UnboundedSender<Action>, mode: &Arc<Mut
 pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Action> {
   // the settings focus isnt super real yet so idk what im doing
   match *mode.lock().unwrap() {
-    Mode::Insert => match key.code {
-      KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
-      KeyCode::Enter => Some(Action::Send),
-      KeyCode::Char(char) => Some(Action::Type(char)),
-      KeyCode::Backspace => Some(Action::Backspace),
-      _ => None,
-    },
-
     Mode::Normal => match key.code {
       KeyCode::Char('j') | KeyCode::Down => Some(Action::Scroll(1)),
       KeyCode::Char('k') | KeyCode::Up => Some(Action::Scroll(-1)),
@@ -120,12 +112,21 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
       KeyCode::Char('i') => Some(Action::SetMode(Mode::Insert)),
       KeyCode::Char('h') | KeyCode::Left => Some(Action::SetMode(Mode::Groups)),
       KeyCode::Char('o') => Some(Action::SetMode(Mode::MessageOptions)),
+      KeyCode::Char('?') => Some(Action::SetMode(Mode::Help)),
 
       KeyCode::Char('S') => Some(Action::SetFocus(Focus::Settings)),
 
       KeyCode::Char('x') => Some(Action::Nvm),
 
       KeyCode::Char('q') => Some(Action::Quit),
+      _ => None,
+    },
+
+    Mode::Insert => match key.code {
+      KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
+      KeyCode::Enter => Some(Action::Send),
+      KeyCode::Char(char) => Some(Action::Type(char)),
+      KeyCode::Backspace => Some(Action::Backspace),
       _ => None,
     },
 
@@ -156,6 +157,11 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
       KeyCode::Enter => Some(Action::PickOption),
       _ => None,
     },
+
+    Mode::Help => match key.code {
+      KeyCode::Esc => Some(Action::SetMode(Mode::Normal)),
+      _ => None,
+    },
   }
 }
 
@@ -172,8 +178,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index =
-          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index = (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -411,9 +416,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
     // maybe this is a ratchet acting as a delivery receipt? maybe...?
     ContentBody::DataMessage(DataMessage {
-      body: None,
-      flags: Some(4),
-      ..
+      body: None, flags: Some(4), ..
     }) => {
       Logger::log("found fake receipt".to_string());
       // some flex-tape on the thread derivation
@@ -443,15 +446,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       // insert_message(model, data, thread, ts, mine)
     }
     ContentBody::SynchronizeMessage(SyncMessage {
-      sent:
-        Some(Sent {
-          message: Some(DataMessage {
-            body: Some(body),
-            quote,
-            ..
-          }),
-          ..
-        }),
+      sent: Some(Sent {
+        message: Some(DataMessage { body: Some(body), quote, .. }),
+        ..
+      }),
       // read: read,
       ..
     }) => {
@@ -506,10 +504,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
         for time in times {
           if let Some(message) = chat.find_message(time) {
-            if let Metadata::MyMessage(MyMessage {
-              read_by, delivered_to, ..
-            }) = &mut message.metadata
-            {
+            if let Metadata::MyMessage(MyMessage { read_by, delivered_to, .. }) = &mut message.metadata {
               let receipt = Receipt {
                 sender: content.metadata.sender.raw_uuid(),
                 timestamp: timestamp,
@@ -541,12 +536,11 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     | ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          message:
-            Some(DataMessage {
-              body: None,
-              reaction: Some(reaction),
-              ..
-            }),
+          message: Some(DataMessage {
+            body: None,
+            reaction: Some(reaction),
+            ..
+          }),
           ..
         }),
       ..
