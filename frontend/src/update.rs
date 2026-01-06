@@ -49,6 +49,7 @@ pub enum Action {
   Nvm,
 
   Scroll(isize),
+  JumpToBottom,
   ScrollGroup(isize),
   ScrollOptions(isize),
 
@@ -114,6 +115,7 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
       KeyCode::Char('k') | KeyCode::Up => Some(Action::Scroll(-1)),
       KeyCode::Char('d') => Some(Action::Scroll(10)),
       KeyCode::Char('u') => Some(Action::Scroll(-10)),
+      KeyCode::Char('g') => Some(Action::JumpToBottom),
 
       KeyCode::Char('i') => Some(Action::SetMode(Mode::Insert)),
       KeyCode::Char('h') | KeyCode::Left => Some(Action::SetMode(Mode::Groups)),
@@ -170,8 +172,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index = (chat.location.index as isize + lines)
-          .clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index =
+          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -181,9 +183,12 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
       //model.current_chat().location.requested_scroll = lines,
     }
 
+    Action::JumpToBottom => {
+      model.current_chat().location.index = model.current_chat().messages.len() - 1;
+    }
+
     Action::ScrollGroup(direction) => {
-      model.chat_index =
-        (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
+      model.chat_index = (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
       //.clamp(0, model.chats.len() as isize - 1) as usize
     }
 
@@ -193,6 +198,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
       let length = match model.current_chat().selected_message()?.metadata {
         Metadata::MyMessage(_) => 5,
         Metadata::NotMyMessage(_) => 3,
+        // you shouldnt be able to take options on this message type
+        Metadata::InfoMessage(_) => 3,
       };
 
       let options = &mut model.current_chat().message_options;
@@ -265,11 +272,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
   None
 }
 
-pub fn handle_option(
-  model: &mut Model,
-  spawner: &SignalSpawner,
-  option: MessageOption,
-) -> Option<Action> {
+pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: MessageOption) -> Option<Action> {
   let chat = model.current_chat();
   let message = chat.find_message(chat.message_options.timestamp)?;
 
@@ -295,14 +298,7 @@ pub fn handle_option(
     MessageOption::Copy => {
       let result = execute!(
         std::io::stdout(),
-        CopyToClipboard::to_clipboard_from(
-          &model
-            .current_chat()
-            .selected_message()
-            .expect("kaboom")
-            .body
-            .body
-        )
+        CopyToClipboard::to_clipboard_from(&model.current_chat().selected_message().expect("kaboom").body.body)
       );
 
       if let Err(error) = result {
@@ -322,11 +318,7 @@ pub fn handle_option(
     MessageOption::Edit => {
       // kinda gotta find the message twice sometimes cuz "cant have more than one mutable borrow
       // yaaaaaaaaaayy..."
-      let body = chat
-        .find_message(chat.message_options.timestamp)?
-        .body
-        .body
-        .clone();
+      let body = chat.find_message(chat.message_options.timestamp)?.body.body.clone();
       chat.text_input.set_content(body);
 
       chat.text_input.mode = TextInputMode::Editing;
@@ -388,16 +380,9 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         })
       };
 
-      let quote = if let Some(Quote { id, .. }) = quote {
-        id
-      } else {
-        None
-      };
+      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
 
-      let reactions = if let Some(data_message::Reaction {
-        emoji: Some(emoji), ..
-      }) = reaction
-      {
+      let reactions = if let Some(data_message::Reaction { emoji: Some(emoji), .. }) = reaction {
         Logger::log("it works like this");
         vec![Reaction {
           emoji: emoji.chars().nth(0)?,
@@ -415,10 +400,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       };
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!(
-          "Could not find a chat that matched the id: {:#?}",
-          thread
-        ));
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
         return None;
       };
 
@@ -444,10 +426,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       }
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!(
-          "Could not find a chat that matched the id: {:#?}",
-          thread
-        ));
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
         return None;
       };
 
@@ -466,12 +445,11 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          message:
-            Some(DataMessage {
-              body: Some(body),
-              quote,
-              ..
-            }),
+          message: Some(DataMessage {
+            body: Some(body),
+            quote,
+            ..
+          }),
           ..
         }),
       // read: read,
@@ -499,10 +477,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       });
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!(
-          "Could not find a chat that matched the id: {:#?}",
-          thread
-        ));
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
         return None;
       };
 
@@ -513,11 +488,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       //   }
       // }
 
-      let quote = if let Some(Quote { id, .. }) = quote {
-        id
-      } else {
-        None
-      };
+      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
 
       let message = Message {
         body: MultiLineString::new(&body),
@@ -536,9 +507,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         for time in times {
           if let Some(message) = chat.find_message(time) {
             if let Metadata::MyMessage(MyMessage {
-              read_by,
-              delivered_to,
-              ..
+              read_by, delivered_to, ..
             }) = &mut message.metadata
             {
               let receipt = Receipt {
@@ -603,10 +572,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         };
 
         let Some(chat) = model.find_chat(&thread) else {
-          Logger::log(format!(
-            "Could not find a chat that matched the id: {:#?}",
-            thread
-          ));
+          Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
           return None;
         };
 

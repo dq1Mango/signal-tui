@@ -139,9 +139,15 @@ pub struct MyMessage {
 }
 
 #[derive(Debug, Clone)]
+pub struct InfoMessage {
+  sent: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Metadata {
   MyMessage(MyMessage),
   NotMyMessage(NotMyMessage),
+  InfoMessage(InfoMessage),
 }
 
 #[derive(Debug, Clone)]
@@ -413,7 +419,11 @@ impl Model {
   }
 
   fn safe_current_chat(&mut self) -> Option<&mut Chat> {
-    if self.chat_index < self.chats.len() { Some(self.current_chat()) } else { None }
+    if self.chat_index < self.chats.len() {
+      Some(self.current_chat())
+    } else {
+      None
+    }
   }
 
   fn find_chat(&mut self, thread: &Thread) -> Option<&mut Chat> {
@@ -442,8 +452,16 @@ impl Model {
   fn new_dm_chat(&mut self, profile: Profile, uuid: Uuid) {
     let chat = Chat::new(
       MyGroup {
-        name: if let Some(name) = profile.name { name.given_name } else { "".to_string() },
-        _description: if let Some(about) = profile.about { about } else { "".to_string() },
+        name: if let Some(name) = profile.name {
+          name.given_name
+        } else {
+          "".to_string()
+        },
+        _description: if let Some(about) = profile.about {
+          about
+        } else {
+          "".to_string()
+        },
         num_members: 1,
       },
       Thread::Contact(uuid),
@@ -466,10 +484,19 @@ impl Model {
 }
 
 impl TextInput {
-  fn render(&mut self, active: bool, message: Option<&Message>, contacts: &Contacts, area: Rect, buf: &mut Buffer) {
+  fn render(
+    &mut self,
+    active: bool,
+    message: Option<&Message>,
+    contacts: &Contacts,
+    area: Rect,
+    buf: &mut Buffer,
+  ) {
     let color = if active { Color::Magenta } else { Color::Reset };
 
-    let mut block = Block::bordered().border_set(border::THICK).border_style(Style::default().fg(color));
+    let mut block = Block::bordered()
+      .border_set(border::THICK)
+      .border_style(Style::default().fg(color));
 
     if self.mode == TextInputMode::Editing {
       block = block.title(Line::from(" Edit Message").left_aligned());
@@ -504,7 +531,10 @@ impl TextInput {
 
   fn calc_cursor_position(&mut self, area: Rect) -> Position {
     // gotta pad the border (still havent found a better way of doing this)
-    let mut pos = Position { x: area.x + 1, y: area.y + 1 };
+    let mut pos = Position {
+      x: area.x + 1,
+      y: area.y + 1,
+    };
     // mad ugly calculations, smthns gotta change
     let lines = self.body.as_lines(area.width - 3);
     // let body = self.body.body.char_indices();
@@ -568,6 +598,9 @@ impl Metadata {
   //     sender: sender,
   //   })
   // }
+  fn new_info(timestamp: DateTime<Utc>) -> Self {
+    Self::InfoMessage(InfoMessage { sent: timestamp })
+  }
 }
 
 fn full_line<'a>(string: String, width: usize) -> Line<'a> {
@@ -611,7 +644,12 @@ impl MessageOptions {
       MessageOption::Info,
       MessageOption::Delete,
     ];
-    let not_my_actions = vec![MessageOption::Reply, MessageOption::React, MessageOption::Copy, MessageOption::Info];
+    let not_my_actions = vec![
+      MessageOption::Reply,
+      MessageOption::React,
+      MessageOption::Copy,
+      MessageOption::Info,
+    ];
     if self.mine {
       Action::DoOption(my_actions[self.index])
     } else {
@@ -630,12 +668,17 @@ impl MessageOptions {
         vec!["  Reply", "  React", "  Copy", "  Info"]
       }
       Metadata::MyMessage(_) => vec!["  Reply", "  React", "  Edit", "  Copy", "  Info", "  Delete"],
+      Metadata::InfoMessage(_) => vec!["shouldnt", "see", "this"],
     };
     let options: Vec<Vec<char>> = options.iter().map(|s| s.chars().collect()).collect();
 
     let length = options.len();
 
-    let area = center_div(area, Constraint::Length(fixed_width), Constraint::Length(length as u16 + 2));
+    let area = center_div(
+      area,
+      Constraint::Length(fixed_width),
+      Constraint::Length(length as u16 + 2),
+    );
 
     let mut lines = Vec::with_capacity(options.len());
 
@@ -657,12 +700,32 @@ impl MessageOptions {
     // lines[self.index].style(Style::default().fg(Color::Magenta));
     let block = Block::bordered().border_set(border::THICK);
 
-    Paragraph::new(lines).block(block).style(Style::default().bg(Color::Black)).render(area, buf);
+    Paragraph::new(lines)
+      .block(block)
+      .style(Style::default().bg(Color::Black))
+      .render(area, buf);
   }
 }
 
 impl Message {
-  fn render(&mut self, num_members: usize, active: bool, quoted: Option<FindMsgResult>, contacts: &Contacts, settings: &Settings, area: Rect, buf: &mut Buffer) {
+  fn filler() -> Self {
+    Self {
+      body: MultiLineString::new("Scroll up to load past messages ... "),
+      metadata: Metadata::new_info(Utc::now()),
+      quote: None,
+      reactions: vec![],
+    }
+  }
+  fn render(
+    &mut self,
+    num_members: usize,
+    active: bool,
+    quoted: Option<FindMsgResult>,
+    contacts: &Contacts,
+    settings: &Settings,
+    area: Rect,
+    buf: &mut Buffer,
+  ) {
     // should probably define this in settings
     let min_message_width = 15;
 
@@ -673,7 +736,9 @@ impl Message {
 
     let color = if active { Color::Magenta } else { Color::Reset };
 
-    let mut block = Block::bordered().border_set(border::THICK).border_style(Style::default().fg(color));
+    let mut block = Block::bordered()
+      .border_set(border::THICK)
+      .border_style(Style::default().fg(color));
 
     let mut displayed_metadata = Line::from(Span::from(self.format_duration()));
 
@@ -704,6 +769,7 @@ impl Message {
 
         block = block.title_bottom(Line::from(reactions).left_aligned())
       }
+      Metadata::InfoMessage(_) => {}
     }
 
     // im rly good at naming variables
@@ -737,7 +803,7 @@ impl Message {
         FindMsgResult::Found(msg) => msg.quote_lines(my_area.width as usize - 2, contacts),
         FindMsgResult::NotLoaded => {
           // 29 is length of this "error" message
-          my_area.width = cmp::max(cmp::min(29, availible_width), my_area.width);
+          my_area.width = cmp::max(cmp::min(29 + 2, availible_width), my_area.width);
           vec![
             Line::from("Message not loaded..."),
             Line::from("scroll up to see this message"),
@@ -745,7 +811,7 @@ impl Message {
           ]
         }
         FindMsgResult::NotExist => {
-          my_area.width = cmp::max(cmp::min(30, availible_width), my_area.width);
+          my_area.width = cmp::max(cmp::min(30 + 2, availible_width), my_area.width);
           vec![
             Line::from("Message not found..."),
             Line::from("i suspect smthn has gone wrong"),
@@ -787,7 +853,11 @@ impl Message {
   }
 
   fn is_mine(&self) -> bool {
-    if let Metadata::MyMessage(_) = self.metadata { true } else { false }
+    if let Metadata::MyMessage(_) = self.metadata {
+      true
+    } else {
+      false
+    }
   }
 
   // really considering ditching chrono
@@ -795,6 +865,7 @@ impl Message {
     match &self.metadata {
       Metadata::NotMyMessage(x) => x.sent,
       Metadata::MyMessage(x) => x.sent,
+      Metadata::InfoMessage(x) => x.sent,
     }
   }
 
@@ -807,10 +878,13 @@ impl Message {
     let check_icon = " ";
 
     return match &self.metadata {
-      Metadata::NotMyMessage(_) => Span::from(""),
+      Metadata::NotMyMessage(_) | Metadata::InfoMessage(_) => Span::from(""),
       Metadata::MyMessage(x) => {
         if x.all_read(num_members) {
-          Span::styled([check_icon, check_icon].concat(), Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))
+          Span::styled(
+            [check_icon, check_icon].concat(),
+            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+          )
         } else if x.all_delivered(num_members) {
           Span::styled([check_icon, check_icon].concat(), Style::default().fg(Color::Gray))
         } else if x.sent() {
@@ -858,6 +932,7 @@ impl Message {
             "You found a bug!"
           }
         }
+        Metadata::InfoMessage(_) => "cant quote this",
       }),
       Span::from(":"),
     ]));
@@ -884,18 +959,18 @@ impl Message {
   }
 }
 
-fn _format_vec(vec: &Vec<String>) -> String {
-  let mut output = String::from("[");
-
-  for thing in vec {
-    output.push_str(thing);
-    output.push_str(", ");
-  }
-
-  output.push_str("]");
-
-  return output;
-}
+// fn _format_vec(vec: &Vec<String>) -> String {
+//   let mut output = String::from("[");
+//
+//   for thing in vec {
+//     output.push_str(thing);
+//     output.push_str(", ");
+//   }
+//
+//   output.push_str("]");
+//
+//   return output;
+// }
 
 #[derive(Debug)]
 pub enum FindMessageResult<'a> {
@@ -965,9 +1040,12 @@ impl Chat {
       None
     };
 
-    let layout = Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
+    let layout =
+      Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
 
-    self.text_input.render(mode == Mode::Insert, reply_message, &contacts, layout[1], buf);
+    self
+      .text_input
+      .render(mode == Mode::Insert, reply_message, &contacts, layout[1], buf);
 
     // kind of a sketchy shadow here but the layout[1] is used like once
     let area = layout[0];
@@ -1069,7 +1147,15 @@ impl Chat {
       // let height = min(y + requested_height, area.height);
       let new_area = Rect::new(area.x, area.y + y as u16, area.width, height as u16);
 
-      message.render(self.display.num_members, self.location.index == index && mode == Mode::Normal, quoted, &contacts, settings, new_area, buf);
+      message.render(
+        self.display.num_members,
+        self.location.index == index && mode == Mode::Normal,
+        quoted,
+        &contacts,
+        settings,
+        new_area,
+        buf,
+      );
 
       if index == 0 {
         break;
@@ -1079,22 +1165,36 @@ impl Chat {
     }
 
     if mode == Mode::MessageOptions {
-      self.message_options.render(&self.messages[self.location.index], area, buf);
+      self
+        .message_options
+        .render(&self.messages[self.location.index], area, buf);
     }
   }
 
   fn last_message(&self) -> Option<&Message> {
     let last = self.messages.len();
-    if last <= 0 { None } else { Some(&self.messages[last - 1]) }
+    if last <= 0 {
+      None
+    } else {
+      Some(&self.messages[last - 1])
+    }
   }
 
   fn last_message_mut(&mut self) -> Option<&mut Message> {
     let last = self.messages.len();
-    if last <= 0 { None } else { Some(&mut self.messages[last - 1]) }
+    if last <= 0 {
+      None
+    } else {
+      Some(&mut self.messages[last - 1])
+    }
   }
 
   fn selected_message(&self) -> Option<&Message> {
-    if self.messages.len() > 0 { Some(&self.messages[self.location.index]) } else { None }
+    if self.messages.len() > 0 {
+      Some(&self.messages[self.location.index])
+    } else {
+      None
+    }
   }
 
   fn insert_message(&mut self, message: Message) {
@@ -1348,10 +1448,13 @@ impl Chat {
           author_uuid: uuid,
         });
 
-        self.find_message(ts).expect("no way these come back to bite me").upsert_reaction(Reaction {
-          emoji: data.chars().nth(0).unwrap(),
-          author: spawner.self_uuid,
-        });
+        self
+          .find_message(ts)
+          .expect("no way these come back to bite me")
+          .upsert_reaction(Reaction {
+            emoji: data.chars().nth(0).unwrap(),
+            author: spawner.self_uuid,
+          });
       }
       TextInputMode::Editing => {
         let target_message = self.find_message(self.message_options.timestamp).unwrap();
@@ -1417,7 +1520,11 @@ impl MyStringUtils for String {
   where
     Int: Into<usize>,
   {
-    self.char_indices().nth(char_idx.into()).map(|(i, _)| i).unwrap_or_else(|| self.len())
+    self
+      .char_indices()
+      .nth(char_idx.into())
+      .map(|(i, _)| i)
+      .unwrap_or_else(|| self.len())
   }
 }
 
@@ -1461,7 +1568,11 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
   // Block::bordered().border_set(border::THICK).render(area, buf);
   //
 
-  let color = if active { if hovered { Color::Magenta } else { Color::Gray } } else { Color::Black };
+  let color = if active {
+    if hovered { Color::Magenta } else { Color::Gray }
+  } else {
+    Color::Black
+  };
 
   let area = pad_with_border(color, area, buf);
 
@@ -1492,14 +1603,23 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
     let time = last_message.format_duration();
 
-    Paragraph::new(vec![Line::from(time), Line::from(last_message.format_delivered_status(chat.display.num_members))]).render(layout[2], buf);
+    Paragraph::new(vec![
+      Line::from(time),
+      Line::from(last_message.format_delivered_status(chat.display.num_members)),
+    ])
+    .render(layout[2], buf);
   }
 
   Paragraph::new(innner_lines).render(layout[1], buf);
 }
 
 fn one_by_two_area(x: u16, y: u16) -> Rect {
-  Rect { x: x, y: y, width: 2, height: 1 }
+  Rect {
+    x: x,
+    y: y,
+    width: 2,
+    height: 1,
+  }
 }
 
 fn render_qr(qr: QrCode, mut area: Rect, buf: &mut Buffer) {
@@ -1557,13 +1677,18 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
 
           // dont render qr-code if we dont have enough space
           if needed_size + 3 > area.height || needed_size * 2 > area.width {
-            Line::from("Window too small to render qr code").style(Style::default().fg(Color::Red)).centered().render(qr_area, buf);
+            Line::from("Window too small to render qr code")
+              .style(Style::default().fg(Color::Red))
+              .centered()
+              .render(qr_area, buf);
             return;
           }
 
           let mut instruction_area = qr_area.clone();
           instruction_area.y -= 1;
-          Line::from("scan the qr-code to link your account").centered().render(instruction_area, buf);
+          Line::from("scan the qr-code to link your account")
+            .centered()
+            .render(instruction_area, buf);
           area.x = qr_area.x;
           area.width = qr_area.width;
           area.y = qr_area.height + qr_area.y;
@@ -1575,7 +1700,10 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
         Err(_) => Line::from("Error generating qrcode (tough shit pal)").render(area, buf),
       }
 
-      let raw_url = vec![Line::from("Or visit the url like a caveman:").centered(), Line::from(url.to_string())];
+      let raw_url = vec![
+        Line::from("Or visit the url like a caveman:").centered(),
+        Line::from(url.to_string()),
+      ];
       Paragraph::new(raw_url).render(
         area, // Rect {
         //   x: area.x,
@@ -1598,7 +1726,9 @@ fn center_div(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect 
 }
 
 fn center_vertical(area: Rect, height: u16) -> Rect {
-  let [area] = Layout::vertical([Constraint::Length(height)]).flex(Flex::Center).areas(area);
+  let [area] = Layout::vertical([Constraint::Length(height)])
+    .flex(Flex::Center)
+    .areas(area);
   area
 }
 
@@ -1621,7 +1751,8 @@ fn draw_loading_sreen(state: &LoadState, frame: &mut Frame) {
   // these should only happen like immediately on start up
   if let Some(raw_duration) = state.raw_duration {
     if let Some(latest_timestamp) = state.latest_timestamp {
-      let formatted_duration = format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
+      let formatted_duration =
+        format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
 
       let partial_duration = Utc::now().timestamp_millis() as u64 - latest_timestamp;
 
@@ -1632,13 +1763,18 @@ fn draw_loading_sreen(state: &LoadState, frame: &mut Frame) {
 
       let mut area = pad_with_border(Color::White, area, buf);
 
-      Line::from(["Loading messages from ", &formatted_duration].concat()).centered().render(area, buf);
+      Line::from(["Loading messages from ", &formatted_duration].concat())
+        .centered()
+        .render(area, buf);
 
       area.y += 1;
 
       let area = center_vertical(area, 2);
 
-      Gauge::default().gauge_style(Style::new().white().on_black().italic()).ratio(percent.clamp(0.0, 1.0)).render(area, buf);
+      Gauge::default()
+        .gauge_style(Style::new().white().on_black().italic())
+        .ratio(percent.clamp(0.0, 1.0))
+        .render(area, buf);
     }
   } else {
     Line::from("Loading past messages ...").render(area, buf);
@@ -1668,7 +1804,8 @@ async fn real_main() -> anyhow::Result<()> {
 
   Logger::log(&db_path);
   // let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
-  let mut config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+  let mut config_store =
+    SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
 
   // tokio::spawn(run(
   //   Cmd::LinkDevice {
@@ -1683,7 +1820,11 @@ async fn real_main() -> anyhow::Result<()> {
   if !config_store.is_registered().await {
     let mut linking_model = LinkState { url: None };
 
-    link_device(SignalServers::Production, "terminal enjoyer".to_string(), action_tx.clone());
+    link_device(
+      SignalServers::Production,
+      "terminal enjoyer".to_string(),
+      action_tx.clone(),
+    );
 
     // spawner.spawn(Cmd::LinkDevice {
     //   servers: SignalServers::Production,
@@ -1701,7 +1842,11 @@ async fn real_main() -> anyhow::Result<()> {
         Some(Action::Link(linking)) => match linking {
           LinkingAction::Url(url) => linking_model.url = Some(url),
           LinkingAction::Success => break,
-          LinkingAction::Fail => link_device(SignalServers::Production, "terminal enjoyer".to_string(), action_tx.clone()),
+          LinkingAction::Fail => link_device(
+            SignalServers::Production,
+            "terminal enjoyer".to_string(),
+            action_tx.clone(),
+          ),
           //   spawner.spawn(Cmd::LinkDevice {
           //   servers: SignalServers::Production,
           //   device_name: "terminal enjoyer".to_string(),
@@ -1725,7 +1870,9 @@ async fn real_main() -> anyhow::Result<()> {
   }
 
   // initialize all the important stuff
-  let manager = Manager::load_registered(config_store).await.expect("why even try anymore?");
+  let manager = Manager::load_registered(config_store)
+    .await
+    .expect("why even try anymore?");
 
   let mut model = Model::init();
   model.mode = Arc::clone(&mode);
@@ -1763,7 +1910,10 @@ async fn real_main() -> anyhow::Result<()> {
           Received::Contacts => Logger::log("we gyatt some contacts".to_string()),
           Received::Content(content) => {
             match loading_model.raw_duration {
-              None => loading_model.raw_duration = Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp),
+              None => {
+                loading_model.raw_duration =
+                  Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
+              }
               _ => {}
             }
 
@@ -1958,14 +2108,21 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
     " Quit ".into(),
     "<Q> ".blue().bold(),
   ]);
-  let _block = Block::bordered().title(title.centered()).title_bottom(instructions.centered()).border_set(border::THICK);
+  let _block = Block::bordered()
+    .title(title.centered())
+    .title_bottom(instructions.centered())
+    .border_set(border::THICK);
 
   // let _counter_text = Text::from(vec![Line::from(vec![
   //   "Value: ".into(),
   //   model.counter.to_string().yellow(),
   // ])]);
 
-  let layout = Layout::new(Direction::Horizontal, vec![Constraint::Percentage(40), Constraint::Percentage(60)]).split(area);
+  let layout = Layout::new(
+    Direction::Horizontal,
+    vec![Constraint::Percentage(40), Constraint::Percentage(60)],
+  )
+  .split(area);
 
   _ = Block::bordered().border_set(border::THICK).render(layout[0], buf);
 
@@ -1981,7 +2138,13 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
 
   while contact_area.y < layout[0].height && index < model.chats.len() {
     let chat = &mut model.chats[index];
-    render_group(chat, index == model.chat_index, model.pinned_mode == Mode::Groups, contact_area, buf);
+    render_group(
+      chat,
+      index == model.chat_index,
+      model.pinned_mode == Mode::Groups,
+      contact_area,
+      buf,
+    );
     // let last = &(&mut model.chats)[index].last_message();
     // model.chats[index].participants.render(last, contact_area, frame.buffer_mut());
     contact_area.y += contact_height;
@@ -2005,7 +2168,9 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
       let chat = if let Some(chat) = model.safe_current_chat() {
         chat
       } else {
-        Line::from("should only see this on the first startup...").centered().render(layout[1], buf);
+        Line::from("should only see this on the first startup...")
+          .centered()
+          .render(layout[1], buf);
         return;
       };
 
@@ -2028,7 +2193,10 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
 }
 
 fn pad_with_border(color: Color, area: Rect, buf: &mut Buffer) -> Rect {
-  Block::bordered().border_set(border::THICK).border_style(Style::default().fg(color)).render(area, buf);
+  Block::bordered()
+    .border_set(border::THICK)
+    .border_style(Style::default().fg(color))
+    .render(area, buf);
 
   Rect {
     x: area.x + 1,

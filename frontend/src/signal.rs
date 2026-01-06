@@ -242,7 +242,9 @@ enum Recipient {
 
 fn parse_group_master_key(value: &str) -> anyhow::Result<GroupMasterKeyBytes> {
   let master_key_bytes = hex::decode(value)?;
-  master_key_bytes.try_into().map_err(|_| anyhow::format_err!("master key should be 32 bytes long"))
+  master_key_bytes
+    .try_into()
+    .map_err(|_| anyhow::format_err!("master key should be 32 bytes long"))
 }
 
 pub fn attachments_tmp_dir() -> anyhow::Result<TempDir> {
@@ -266,7 +268,12 @@ pub fn attachments_tmp_dir() -> anyhow::Result<TempDir> {
 // }
 
 pub fn default_db_path() -> String {
-  ProjectDirs::from("", "", "signal-tui").unwrap().config_dir().join("signal-tui.db3").display().to_string()
+  ProjectDirs::from("", "", "signal-tui")
+    .unwrap()
+    .config_dir()
+    .join("signal-tui.db3")
+    .display()
+    .to_string()
 }
 
 // #[tokio::main(flavor = "multi_thread")]
@@ -300,13 +307,19 @@ pub fn get_quote(quoted: &Message) -> Quote {
     text: Some(quoted.body.body.clone()),
     author_aci: match quoted.metadata {
       crate::Metadata::NotMyMessage(NotMyMessage { sender, .. }) => Some(sender.to_string()),
-      crate::Metadata::MyMessage(_) => None,
+      crate::Metadata::MyMessage(_) | crate::Metadata::InfoMessage(_) => None,
     },
     ..Default::default()
   }
 }
 
-async fn send(manager: &mut MyManager, recipient: Recipient, timestamp: u64, msg: impl Into<ContentBody>, mut quote: Option<Quote>) -> anyhow::Result<()> {
+async fn send(
+  manager: &mut MyManager,
+  recipient: Recipient,
+  timestamp: u64,
+  msg: impl Into<ContentBody>,
+  mut quote: Option<Quote>,
+) -> anyhow::Result<()> {
   let attachments_tmp_dir = attachments_tmp_dir()?;
 
   // let timestamp = std::time::SystemTime::now()
@@ -332,11 +345,16 @@ async fn send(manager: &mut MyManager, recipient: Recipient, timestamp: u64, msg
   match recipient {
     Recipient::Contact(uuid) => {
       info!(recipient =% uuid, "sending message to contact");
-      let result = manager.send_message(ServiceId::Aci(uuid.into()), content_body, timestamp).await;
+      let result = manager
+        .send_message(ServiceId::Aci(uuid.into()), content_body, timestamp)
+        .await;
     }
     Recipient::Group(master_key) => {
       info!("sending message to group");
-      manager.send_message_to_group(&master_key, content_body, timestamp).await.expect("failed to send message");
+      manager
+        .send_message_to_group(&master_key, content_body, timestamp)
+        .await
+        .expect("failed to send message");
     }
   }
   // --- dont want to be sleeping forever lol
@@ -356,7 +374,12 @@ async fn send(manager: &mut MyManager, recipient: Recipient, timestamp: u64, msg
 
 // Note to developers, this is a good example of a function you can use as a source of inspiration
 // to process incoming messages.
-pub async fn process_incoming_message(manager: &mut MyManager, attachments_tmp_dir: &Path, notifications: bool, content: &Content) {
+pub async fn process_incoming_message(
+  manager: &mut MyManager,
+  attachments_tmp_dir: &Path,
+  notifications: bool,
+  content: &Content,
+) {
   // print_message(manager, notifications, content).await;
 
   let sender = content.metadata.sender.raw_uuid();
@@ -370,9 +393,17 @@ pub async fn process_incoming_message(manager: &mut MyManager, attachments_tmp_d
           continue;
         };
 
-        let extensions = mime_guess::get_mime_extensions_str(attachment_pointer.content_type.as_deref().unwrap_or("application/octet-stream"));
+        let extensions = mime_guess::get_mime_extensions_str(
+          attachment_pointer
+            .content_type
+            .as_deref()
+            .unwrap_or("application/octet-stream"),
+        );
         let extension = extensions.and_then(|e| e.first()).unwrap_or(&"bin");
-        let filename = attachment_pointer.file_name.clone().unwrap_or_else(|| Local::now().format("%Y-%m-%d-%H-%M-%s").to_string());
+        let filename = attachment_pointer
+          .file_name
+          .clone()
+          .unwrap_or_else(|| Local::now().format("%Y-%m-%d-%H-%M-%s").to_string());
         let file_path = attachments_tmp_dir.join(format!("presage-{filename}.{extension}",));
         match fs::write(&file_path, &attachment_data).await {
           Ok(_) => info!(%sender, file_path =% file_path.display(), "saved attachment"),
@@ -403,19 +434,27 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     return;
   };
 
-  async fn format_data_message(thread: &Thread, data_message: &DataMessage, manager: &MyManager) -> Option<String> {
+  async fn format_data_message(
+    thread: &Thread,
+    data_message: &DataMessage,
+    manager: &MyManager,
+  ) -> Option<String> {
     match data_message {
       DataMessage {
-        quote: Some(Quote { text: Some(quoted_text), .. }),
+        quote: Some(Quote {
+          text: Some(quoted_text),
+          ..
+        }),
         body: Some(body),
         ..
       } => Some(format!("Answer to message \"{quoted_text}\": {body}")),
       DataMessage {
-        reaction: Some(Reaction {
-          target_sent_timestamp: Some(ts),
-          emoji: Some(emoji),
-          ..
-        }),
+        reaction:
+          Some(Reaction {
+            target_sent_timestamp: Some(ts),
+            emoji: Some(emoji),
+            ..
+          }),
         ..
       } => {
         let Ok(Some(message)) = manager.store().message(thread, *ts).await else {
@@ -448,7 +487,14 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 
   async fn format_group(key: [u8; 32], manager: &MyManager) -> String {
-    manager.store().group(key).await.ok().flatten().map(|g| g.title).unwrap_or_else(|| "<missing group>".to_string())
+    manager
+      .store()
+      .group(key)
+      .await
+      .ok()
+      .flatten()
+      .map(|g| g.title)
+      .unwrap_or_else(|| "<missing group>".to_string())
   }
 
   enum Msg<'a> {
@@ -458,24 +504,46 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
 
   if let Some(msg) = match &content.body {
     ContentBody::NullMessage(_) => Some(Msg::Received(&thread, "Null message (for example deleted)".to_string())),
-    ContentBody::DataMessage(data_message) => format_data_message(&thread, data_message, manager).await.map(|body| Msg::Received(&thread, body)),
-    ContentBody::EditMessage(EditMessage { data_message: Some(data_message), .. }) => format_data_message(&thread, data_message, manager).await.map(|body| Msg::Received(&thread, body)),
+    ContentBody::DataMessage(data_message) => format_data_message(&thread, data_message, manager)
+      .await
+      .map(|body| Msg::Received(&thread, body)),
+    ContentBody::EditMessage(EditMessage {
+      data_message: Some(data_message),
+      ..
+    }) => format_data_message(&thread, data_message, manager)
+      .await
+      .map(|body| Msg::Received(&thread, body)),
     ContentBody::EditMessage(EditMessage { .. }) => None,
     ContentBody::SynchronizeMessage(SyncMessage {
-      sent: Some(Sent { message: Some(data_message), .. }),
-      ..
-    }) => format_data_message(&thread, data_message, manager).await.map(|body| Msg::Sent(&thread, body)),
-    ContentBody::SynchronizeMessage(SyncMessage {
       sent: Some(Sent {
-        edit_message: Some(EditMessage { data_message: Some(data_message), .. }),
+        message: Some(data_message),
         ..
       }),
       ..
-    }) => format_data_message(&thread, data_message, manager).await.map(|body| Msg::Sent(&thread, body)),
+    }) => format_data_message(&thread, data_message, manager)
+      .await
+      .map(|body| Msg::Sent(&thread, body)),
+    ContentBody::SynchronizeMessage(SyncMessage {
+      sent:
+        Some(Sent {
+          edit_message:
+            Some(EditMessage {
+              data_message: Some(data_message),
+              ..
+            }),
+          ..
+        }),
+      ..
+    }) => format_data_message(&thread, data_message, manager)
+      .await
+      .map(|body| Msg::Sent(&thread, body)),
     ContentBody::SynchronizeMessage(SyncMessage { .. }) => None,
     ContentBody::CallMessage(_) => Some(Msg::Received(&thread, "is calling!".into())),
     ContentBody::TypingMessage(_) => Some(Msg::Received(&thread, "is typing...".into())),
-    ContentBody::ReceiptMessage(ReceiptMessage { r#type: receipt_type, timestamp }) => Some(Msg::Received(
+    ContentBody::ReceiptMessage(ReceiptMessage {
+      r#type: receipt_type,
+      timestamp,
+    }) => Some(Msg::Received(
       &thread,
       format!(
         "got {:?} receipt for messages sent at {timestamp:?}",
@@ -516,9 +584,16 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 }
 
-async fn receive(manager: &mut MyManager, notifications: bool, output: mpsc::UnboundedSender<Action>) -> anyhow::Result<()> {
+async fn receive(
+  manager: &mut MyManager,
+  notifications: bool,
+  output: mpsc::UnboundedSender<Action>,
+) -> anyhow::Result<()> {
   let attachments_tmp_dir = attachments_tmp_dir()?;
-  let messages = manager.receive_messages().await.context("failed to initialize messages stream")?;
+  let messages = manager
+    .receive_messages()
+    .await
+    .context("failed to initialize messages stream")?;
   pin_mut!(messages);
 
   while let Some(content) = messages.next().await {
@@ -527,7 +602,9 @@ async fn receive(manager: &mut MyManager, notifications: bool, output: mpsc::Unb
       Received::Contacts => {
         //println!("got contacts synchronization"),
       }
-      Received::Content(content) => process_incoming_message(manager, attachments_tmp_dir.path(), notifications, &content).await,
+      Received::Content(content) => {
+        process_incoming_message(manager, attachments_tmp_dir.path(), notifications, &content).await
+      }
     }
 
     _ = output.send(Action::Receive(content));
@@ -543,7 +620,9 @@ pub fn link_device(servers: SignalServers, device_name: String, output: mpsc::Un
     // let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
     let db_path = default_db_path();
 
-    let config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await.unwrap();
+    let config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust)
+      .await
+      .unwrap();
 
     let (provisioning_link_tx, provisioning_link_rx) = oneshot::channel();
     let output1 = output.clone();
@@ -657,12 +736,25 @@ pub async fn list_groups(manager: &MyManager) -> Vec<(GroupMasterKeyBytes, Group
 
 // pub async fn get_groups(manager: &MyManager) ->
 
-pub async fn retrieve_profile(manager: &mut MyManager, uuid: Uuid, mut profile_key: Option<ProfileKey>) -> anyhow::Result<Profile> {
+pub async fn retrieve_profile(
+  manager: &mut MyManager,
+  uuid: Uuid,
+  mut profile_key: Option<ProfileKey>,
+) -> anyhow::Result<Profile> {
   if profile_key.is_none() {
-    for contact in manager.store().contacts().await?.filter_map(Result::ok).filter(|c| c.uuid == uuid) {
+    for contact in manager
+      .store()
+      .contacts()
+      .await?
+      .filter_map(Result::ok)
+      .filter(|c| c.uuid == uuid)
+    {
       let profilek: [u8; 32] = match (contact.profile_key).try_into() {
         Ok(profilek) => profilek,
-        Err(_) => bail!("Profile key is not 32 bytes or empty for uuid: {:?} and no alternative profile key was provided", uuid),
+        Err(_) => bail!(
+          "Profile key is not 32 bytes or empty for uuid: {:?} and no alternative profile key was provided",
+          uuid
+        ),
       };
       profile_key = Some(ProfileKey::create(profilek));
     }
@@ -701,7 +793,11 @@ pub async fn retrieve_profile(manager: &mut MyManager, uuid: Uuid, mut profile_k
 use crate::update::Action;
 use crate::update::LinkingAction;
 
-pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::UnboundedSender<Action>) -> anyhow::Result<()> {
+pub async fn run(
+  manager: &mut MyManager,
+  subcommand: Cmd,
+  output: mpsc::UnboundedSender<Action>,
+) -> anyhow::Result<()> {
   match subcommand {
     Cmd::Register {
       servers,
@@ -749,7 +845,11 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
 
       for device in devices {
         let device_name = device.name.unwrap_or_else(|| "(no device name)".to_string());
-        let current_marker = if device.id == current_device_id { "(this device)" } else { "" };
+        let current_marker = if device.id == current_device_id {
+          "(this device)"
+        } else {
+          ""
+        };
 
         println!(
           "- Device {} {}\n  Name: {}\n  Created: {}\n  Last seen: {}",
@@ -838,7 +938,13 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
         Thread::Contact(_) => None,
       };
 
-      if let ContentBody::DataMessage(mut targeted_message) = manager.store().message(&thread, target_timestamp).await?.expect("ruh roh").body {
+      if let ContentBody::DataMessage(mut targeted_message) = manager
+        .store()
+        .message(&thread, target_timestamp)
+        .await?
+        .expect("ruh roh")
+        .body
+      {
         targeted_message.body = Some(message);
         let content = EditMessage {
           data_message: Some(targeted_message),
@@ -883,7 +989,10 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
 
       send(manager, recipient_from_thread(thread), timestamp, data_message, None).await?;
     }
-    Cmd::DeleteMessage { thread, target_timestamp } => {
+    Cmd::DeleteMessage {
+      thread,
+      target_timestamp,
+    } => {
       let timestamp = Utc::now().timestamp_millis() as u64;
       let group_v2 = match &thread {
         Thread::Group(master_key) => Some(GroupContextV2 {
@@ -908,7 +1017,10 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
         existing_msg.body = NullMessage::default().into();
         store.save_message(&thread, existing_msg).await?;
       } else {
-        Logger::log(format!("could not find message to delete in thread {}, {}", thread, target_timestamp));
+        Logger::log(format!(
+          "could not find message to delete in thread {}, {}",
+          thread, target_timestamp
+        ));
       }
 
       send(manager, recipient_from_thread(thread), timestamp, delete_message, None).await?;
@@ -922,11 +1034,18 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
           Ok((
             group_master_key,
             Group {
-              title, description, revision, members, ..
+              title,
+              description,
+              revision,
+              members,
+              ..
             },
           )) => {
             let key = hex::encode(group_master_key);
-            println!("{key} {title}: {description:?} / revision {revision} / {} members", members.len());
+            println!(
+              "{key} {title}: {description:?} / revision {revision} / {} members",
+              members.len()
+            );
           }
           Err(error) => {
             error!(%error, "failed to deserialize group");
@@ -935,7 +1054,13 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
       }
     }
     Cmd::ListContacts => {
-      for Contact { name, uuid, phone_number, .. } in manager.store().contacts().await?.flatten() {
+      for Contact {
+        name,
+        uuid,
+        phone_number,
+        ..
+      } in manager.store().contacts().await?.flatten()
+      {
         println!("{uuid} / {phone_number:?} / {name}");
       }
     }
@@ -943,7 +1068,10 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
       for sticker_pack in manager.store().sticker_packs().await? {
         match sticker_pack {
           Ok(sticker_pack) => {
-            println!("title={} author={}", sticker_pack.manifest.title, sticker_pack.manifest.author,);
+            println!(
+              "title={} author={}",
+              sticker_pack.manifest.title, sticker_pack.manifest.author,
+            );
             for sticker in sticker_pack.manifest.stickers {
               println!(
                 "\tid={} emoji={} content_type={} bytes={}",
@@ -967,7 +1095,11 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
       Some(contact) => println!("{contact:#?}"),
       None => eprintln!("Could not find contact for {uuid}"),
     },
-    Cmd::FindContact { uuid, phone_number, ref name } => {
+    Cmd::FindContact {
+      uuid,
+      phone_number,
+      ref name,
+    } => {
       for contact in manager
         .store()
         .contacts()
@@ -999,14 +1131,24 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
       //   }
       // }
     }
-    Cmd::ListMessages { group_master_key, recipient_uuid, from } => {
+    Cmd::ListMessages {
+      group_master_key,
+      recipient_uuid,
+      from,
+    } => {
       let thread = match (group_master_key, recipient_uuid) {
         (Some(master_key), _) => Thread::Group(master_key),
         (_, Some(uuid)) => Thread::Contact(uuid),
         _ => unreachable!(),
       };
 
-      let messages = manager.store().raw_messages(&thread, from.unwrap_or(0)..).await?.filter_map(Result::ok).rev().collect();
+      let messages = manager
+        .store()
+        .raw_messages(&thread, from.unwrap_or(0)..)
+        .await?
+        .filter_map(Result::ok)
+        .rev()
+        .collect();
 
       _ = output.send(Action::ReceiveBatch(messages));
     }
@@ -1055,14 +1197,20 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
   Ok(())
 }
 
-async fn upload_attachments(attachment_filepath: Vec<PathBuf>, manager: &MyManager) -> Result<Vec<presage::proto::AttachmentPointer>, anyhow::Error> {
+async fn upload_attachments(
+  attachment_filepath: Vec<PathBuf>,
+  manager: &MyManager,
+) -> Result<Vec<presage::proto::AttachmentPointer>, anyhow::Error> {
   let attachment_specs: Vec<_> = attachment_filepath
     .into_iter()
     .filter_map(|path| {
       let data = std::fs::read(&path).ok()?;
       Some((
         AttachmentSpec {
-          content_type: mime_guess::from_path(&path).first().unwrap_or(APPLICATION_OCTET_STREAM).to_string(),
+          content_type: mime_guess::from_path(&path)
+            .first()
+            .unwrap_or(APPLICATION_OCTET_STREAM)
+            .to_string(),
           length: data.len(),
           file_name: path.file_name().map(|s| s.to_string_lossy().to_string()),
           preview: None,
@@ -1078,13 +1226,20 @@ async fn upload_attachments(attachment_filepath: Vec<PathBuf>, manager: &MyManag
     })
     .collect();
 
-  let attachments: Result<Vec<_>, _> = manager.upload_attachments(attachment_specs).await?.into_iter().collect();
+  let attachments: Result<Vec<_>, _> = manager
+    .upload_attachments(attachment_specs)
+    .await?
+    .into_iter()
+    .collect();
 
   let attachments = attachments?;
   Ok(attachments)
 }
 
 fn parse_base64_profile_key(s: &str) -> anyhow::Result<ProfileKey> {
-  let bytes = BASE64_STANDARD.decode(s)?.try_into().map_err(|_| anyhow!("profile key of invalid length"))?;
+  let bytes = BASE64_STANDARD
+    .decode(s)?
+    .try_into()
+    .map_err(|_| anyhow!("profile key of invalid length"))?;
   Ok(ProfileKey::create(bytes))
 }
