@@ -70,6 +70,7 @@ use crate::Model;
 use crate::MyManager;
 use crate::NotMyMessage;
 use crate::Profile;
+use crate::default_db_path;
 use crate::logger::Logger;
 // #[derive(Parser)]
 // #[clap(about = "a basic signal CLI to try things out")]
@@ -266,15 +267,6 @@ pub fn attachments_tmp_dir() -> anyhow::Result<TempDir> {
 //     .init();
 //   Args::parse()
 // }
-
-pub fn default_db_path() -> String {
-  ProjectDirs::from("", "", "signal-tui")
-    .unwrap()
-    .config_dir()
-    .join("signal-tui.db3")
-    .display()
-    .to_string()
-}
 
 // #[tokio::main(flavor = "multi_thread")]
 // async fn init(rx: Receiver<Cmd>) -> anyhow::Result<()> {

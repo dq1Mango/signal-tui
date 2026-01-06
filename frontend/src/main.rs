@@ -1,6 +1,7 @@
 mod logger;
 mod model;
 mod mysignal;
+mod settings;
 mod signal;
 #[cfg(test)]
 mod tests;
@@ -13,11 +14,14 @@ use std::{
   fmt::Debug,
   hash::Hash,
   io::{self, Stdout},
+  path::Path,
   sync::{Arc, Mutex},
   vec,
 };
 
+use color_eyre::config;
 use crossterm::{ExecutableCommand, cursor};
+use directories::ProjectDirs;
 use presage::{
   libsignal_service::{
     Profile,
@@ -55,7 +59,8 @@ use url::Url;
 use qrcodegen::QrCode;
 use qrcodegen::QrCodeEcc;
 // use crate::signal::*;
-use crate::signal::{default_db_path, get_quote, link_device};
+use crate::settings::Settings;
+use crate::signal::{get_quote, link_device};
 use crate::update::*;
 use crate::{logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction};
 
@@ -254,12 +259,6 @@ pub struct TextInput {
   mode: TextInputMode,
 }
 
-pub struct Settings {
-  borders: bool,
-  message_width_ratio: f32,
-  _identity: String,
-}
-
 struct Account {
   name: String,
   username: String,
@@ -267,14 +266,12 @@ struct Account {
   uuid: Uuid,
 }
 
-impl Settings {
-  fn init() -> Self {
-    Self {
-      borders: true,
-      message_width_ratio: 0.8,
-      _identity: "me".to_string(),
-    }
-  }
+pub fn config_dir_path() -> Box<Path> {
+  ProjectDirs::from("", "", "signal-tui").unwrap().config_dir().into()
+}
+
+pub fn default_db_path() -> String {
+  config_dir_path().join("signal-tui.db3").display().to_string()
 }
 
 impl Model {
