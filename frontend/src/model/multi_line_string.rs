@@ -22,7 +22,7 @@ fn string_from_chars(chars: &[char]) -> String {
 fn replace_dangerous_char(input: char) -> char {
   match input {
     '\t' => {
-      Logger::log("found one");
+      // Logger::log("found one");
       ' '
     }
     '\r' => ' ',

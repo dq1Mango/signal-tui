@@ -26,11 +26,13 @@ use presage::{
   libsignal_service::{
     Profile,
     configuration::SignalServers,
+    models::Attachment,
     prelude::{ProfileKey, Uuid},
     proto,
     zkgroup::GroupMasterKeyBytes,
   },
   model::groups::Group,
+  proto::AttachmentPointer,
   store::Thread,
 };
 
@@ -62,7 +64,9 @@ use qrcodegen::QrCodeEcc;
 use crate::settings::Settings;
 use crate::signal::{get_quote, link_device};
 use crate::update::*;
-use crate::{logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction};
+use crate::{
+  logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction,
+};
 
 // there are three different models to represent all the parts of linking a device, loading
 // past messages, and normal operation, which is ugly dont get me wrong, but i feel like
@@ -168,6 +172,7 @@ pub struct Message {
   metadata: Metadata,
   quote: Option<u64>,
   reactions: Vec<Reaction>,
+  attachments: Vec<AttachmentPointer>,
 }
 
 #[derive(Debug, Clone)]
@@ -268,7 +273,10 @@ struct Account {
 }
 
 pub fn config_dir_path() -> Box<Path> {
-  ProjectDirs::from("", "", "signal-tui").unwrap().config_dir().into()
+  ProjectDirs::from("", "", "signal-tui")
+    .unwrap()
+    .config_dir()
+    .into()
 }
 
 pub fn default_db_path() -> String {
@@ -455,7 +463,11 @@ impl Model {
         } else {
           "".to_string()
         },
-        _description: if let Some(about) = profile.about { about } else { "".to_string() },
+        _description: if let Some(about) = profile.about {
+          about
+        } else {
+          "".to_string()
+        },
         num_members: 1,
       },
       Thread::Contact(uuid),
@@ -478,10 +490,19 @@ impl Model {
 }
 
 impl TextInput {
-  fn render(&mut self, active: bool, message: Option<&Message>, contacts: &Contacts, area: Rect, buf: &mut Buffer) {
+  fn render(
+    &mut self,
+    active: bool,
+    message: Option<&Message>,
+    contacts: &Contacts,
+    area: Rect,
+    buf: &mut Buffer,
+  ) {
     let color = if active { Color::Magenta } else { Color::Reset };
 
-    let mut block = Block::bordered().border_set(border::THICK).border_style(Style::default().fg(color));
+    let mut block = Block::bordered()
+      .border_set(border::THICK)
+      .border_style(Style::default().fg(color));
 
     if self.mode == TextInputMode::Editing {
       block = block.title(Line::from(" Edit Message").left_aligned());
@@ -629,7 +650,12 @@ impl MessageOptions {
       MessageOption::Info,
       MessageOption::Delete,
     ];
-    let not_my_actions = vec![MessageOption::Reply, MessageOption::React, MessageOption::Copy, MessageOption::Info];
+    let not_my_actions = vec![
+      MessageOption::Reply,
+      MessageOption::React,
+      MessageOption::Copy,
+      MessageOption::Info,
+    ];
     if self.mine {
       Action::DoOption(my_actions[self.index])
     } else {
@@ -647,14 +673,25 @@ impl MessageOptions {
       Metadata::NotMyMessage(_) => {
         vec!["  Reply", "  React", "  Copy", "  Info"]
       }
-      Metadata::MyMessage(_) => vec!["  Reply", "  React", "  Edit", "  Copy", "  Info", "  Delete"],
+      Metadata::MyMessage(_) => vec![
+        "  Reply",
+        "  React",
+        "  Edit",
+        "  Copy",
+        "  Info",
+        "  Delete",
+      ],
       Metadata::InfoMessage(_) => vec!["shouldnt", "see", "this"],
     };
     let options: Vec<Vec<char>> = options.iter().map(|s| s.chars().collect()).collect();
 
     let length = options.len();
 
-    let area = center_div(area, Constraint::Length(fixed_width), Constraint::Length(length as u16 + 2));
+    let area = center_div(
+      area,
+      Constraint::Length(fixed_width),
+      Constraint::Length(length as u16 + 2),
+    );
 
     let mut lines = Vec::with_capacity(options.len());
 
@@ -664,7 +701,10 @@ impl MessageOptions {
       //   Span::from(option[0].to_string()).style(Style::default().bold()),
       //   Span::from((&option[1..]).iter().collect::<String>()),
       // ]);
-      let mut line = Line::from(full_line(option.into_iter().collect::<String>(), fixed_width as usize));
+      let mut line = Line::from(full_line(
+        option.into_iter().collect::<String>(),
+        fixed_width as usize,
+      ));
 
       if index == self.index {
         line = line.style(Style::default().bg(Color::Magenta).fg(Color::Black));
@@ -690,6 +730,7 @@ impl Message {
       metadata: Metadata::new_info(Utc::now()),
       quote: None,
       reactions: vec![],
+      attachments: vec![],
     }
   }
   fn render(
@@ -712,7 +753,9 @@ impl Message {
 
     let color = if active { Color::Magenta } else { Color::Reset };
 
-    let mut block = Block::bordered().border_set(border::THICK).border_style(Style::default().fg(color));
+    let mut block = Block::bordered()
+      .border_set(border::THICK)
+      .border_style(Style::default().fg(color));
 
     let mut displayed_metadata = Line::from(Span::from(self.format_duration()));
 
@@ -753,20 +796,28 @@ impl Message {
     // let message_width: u16 = (area.width as f32 * settings.message_width_ratio + 0.5) as u16 - 2;
 
     let vec_lines: Vec<String> = self.body.as_trimmed_lines(my_area.width - 2);
+    let mut can_shrink = true;
 
     // shrink the message to fit if it does not need mutliple lines
 
+    // if vec_lines.len() > 1 {
+    //   can_shrink = false
+    // }
     if vec_lines.len() == 1 {
       // these +- 2's are going to be the death of me
       my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_width); // <----
       // ok listen ik this is bad but the only other way i could think of was to modify ^^
       // and that just seemed wrong ...
       if let Some(FindMsgResult::Found(msg)) = &quoted {
-        my_area.width = cmp::max(my_area.width, cmp::min(availible_width, msg.body.body.len() as u16 + 2));
+        my_area.width = cmp::max(
+          my_area.width,
+          cmp::min(availible_width, msg.body.body.len() as u16 + 2),
+        );
       }
     }
 
     let mut lines: Vec<Line> = Vec::new();
+    let mut seperators: Vec<usize> = Vec::new();
 
     if self.quote.is_some() != quoted.is_some() {
       Logger::log("aint no way bruh");
@@ -827,7 +878,11 @@ impl Message {
   }
 
   fn is_mine(&self) -> bool {
-    if let Metadata::MyMessage(_) = self.metadata { true } else { false }
+    if let Metadata::MyMessage(_) = self.metadata {
+      true
+    } else {
+      false
+    }
   }
 
   // really considering ditching chrono
@@ -856,7 +911,10 @@ impl Message {
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
           )
         } else if x.all_delivered(num_members) {
-          Span::styled([check_icon, check_icon].concat(), Style::default().fg(Color::Gray))
+          Span::styled(
+            [check_icon, check_icon].concat(),
+            Style::default().fg(Color::Gray),
+          )
         } else if x.sent() {
           Span::styled(check_icon, Style::default().fg(Color::Gray))
         } else {
@@ -1011,9 +1069,15 @@ impl Chat {
       None
     };
 
-    let layout = Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
+    let layout = Layout::vertical([
+      Constraint::Min(6),
+      Constraint::Length(input_lines + reply_lines + 2),
+    ])
+    .split(area);
 
-    self.text_input.render(mode == Mode::Insert, reply_message, &contacts, layout[1], buf);
+    self
+      .text_input
+      .render(mode == Mode::Insert, reply_message, &contacts, layout[1], buf);
 
     // kind of a sketchy shadow here but the layout[1] is used like once
     let area = layout[0];
@@ -1133,18 +1197,28 @@ impl Chat {
     }
 
     if mode == Mode::MessageOptions {
-      self.message_options.render(&self.messages[self.location.index], area, buf);
+      self
+        .message_options
+        .render(&self.messages[self.location.index], area, buf);
     }
   }
 
   fn last_message(&self) -> Option<&Message> {
     let last = self.messages.len();
-    if last <= 0 { None } else { Some(&self.messages[last - 1]) }
+    if last <= 0 {
+      None
+    } else {
+      Some(&self.messages[last - 1])
+    }
   }
 
   fn last_message_mut(&mut self) -> Option<&mut Message> {
     let last = self.messages.len();
-    if last <= 0 { None } else { Some(&mut self.messages[last - 1]) }
+    if last <= 0 {
+      None
+    } else {
+      Some(&mut self.messages[last - 1])
+    }
   }
 
   fn selected_message(&self) -> Option<&Message> {
@@ -1384,6 +1458,7 @@ impl Chat {
           metadata: Metadata::new_mine(ts, self.display.num_members),
           quote: quote_stamp,
           reactions: vec![],
+          attachments: vec![],
         });
 
         // scroll down if we r at the bottom (this logic is def repeated and shouldnt be)
@@ -1486,7 +1561,11 @@ impl MyStringUtils for String {
   where
     Int: Into<usize>,
   {
-    self.char_indices().nth(char_idx.into()).map(|(i, _)| i).unwrap_or_else(|| self.len())
+    self
+      .char_indices()
+      .nth(char_idx.into())
+      .map(|(i, _)| i)
+      .unwrap_or_else(|| self.len())
   }
 }
 
@@ -1538,7 +1617,8 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
   let area = pad_with_border(color, area, buf);
 
-  let layout = Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
+  let layout =
+    Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
 
   // let image = StatefulImage::default().resize(Resize::Crop(None));
   // let mut pfp = match &self.pfp {
@@ -1662,7 +1742,10 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
         Err(_) => Line::from("Error generating qrcode (tough shit pal)").render(area, buf),
       }
 
-      let raw_url = vec![Line::from("Or visit the url like a caveman:").centered(), Line::from(url.to_string())];
+      let raw_url = vec![
+        Line::from("Or visit the url like a caveman:").centered(),
+        Line::from(url.to_string()),
+      ];
       Paragraph::new(raw_url).render(
         area, // Rect {
         //   x: area.x,
@@ -1685,7 +1768,9 @@ fn center_div(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect 
 }
 
 fn center_vertical(area: Rect, height: u16) -> Rect {
-  let [area] = Layout::vertical([Constraint::Length(height)]).flex(Flex::Center).areas(area);
+  let [area] = Layout::vertical([Constraint::Length(height)])
+    .flex(Flex::Center)
+    .areas(area);
   area
 }
 
@@ -1708,7 +1793,8 @@ fn draw_loading_sreen(state: &LoadState, frame: &mut Frame) {
   // these should only happen like immediately on start up
   if let Some(raw_duration) = state.raw_duration {
     if let Some(latest_timestamp) = state.latest_timestamp {
-      let formatted_duration = format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
+      let formatted_duration =
+        format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
 
       let partial_duration = Utc::now().timestamp_millis() as u64 - latest_timestamp;
 
@@ -1760,7 +1846,8 @@ async fn real_main() -> anyhow::Result<()> {
 
   Logger::log(&db_path);
   // let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
-  let mut config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+  let mut config_store =
+    SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
 
   // tokio::spawn(run(
   //   Cmd::LinkDevice {
@@ -1775,7 +1862,11 @@ async fn real_main() -> anyhow::Result<()> {
   if !config_store.is_registered().await {
     let mut linking_model = LinkState { url: None };
 
-    link_device(SignalServers::Production, "terminal enjoyer".to_string(), action_tx.clone());
+    link_device(
+      SignalServers::Production,
+      "terminal enjoyer".to_string(),
+      action_tx.clone(),
+    );
 
     // spawner.spawn(Cmd::LinkDevice {
     //   servers: SignalServers::Production,
@@ -1793,7 +1884,11 @@ async fn real_main() -> anyhow::Result<()> {
         Some(Action::Link(linking)) => match linking {
           LinkingAction::Url(url) => linking_model.url = Some(url),
           LinkingAction::Success => break,
-          LinkingAction::Fail => link_device(SignalServers::Production, "terminal enjoyer".to_string(), action_tx.clone()),
+          LinkingAction::Fail => link_device(
+            SignalServers::Production,
+            "terminal enjoyer".to_string(),
+            action_tx.clone(),
+          ),
           //   spawner.spawn(Cmd::LinkDevice {
           //   servers: SignalServers::Production,
           //   device_name: "terminal enjoyer".to_string(),
@@ -1813,11 +1908,14 @@ async fn real_main() -> anyhow::Result<()> {
     }
 
     // there probably a better way to make the store linked but this only happens once so idc
-    config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+    config_store =
+      SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
   }
 
   // initialize all the important stuff
-  let manager = Manager::load_registered(config_store).await.expect("why even try anymore?");
+  let manager = Manager::load_registered(config_store)
+    .await
+    .expect("why even try anymore?");
 
   let mut model = Model::init();
   model.mode = Arc::clone(&mode);
@@ -1855,7 +1953,10 @@ async fn real_main() -> anyhow::Result<()> {
           Received::Contacts => Logger::log("we gyatt some contacts".to_string()),
           Received::Content(content) => {
             match loading_model.raw_duration {
-              None => loading_model.raw_duration = Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp),
+              None => {
+                loading_model.raw_duration =
+                  Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
+              }
               _ => {}
             }
 
@@ -1863,7 +1964,12 @@ async fn real_main() -> anyhow::Result<()> {
           }
         }
 
-        update(&mut model, msg.expect("the laws of physics have collapsed"), &spawner).await;
+        update(
+          &mut model,
+          msg.expect("the laws of physics have collapsed"),
+          &spawner,
+        )
+        .await;
       }
 
       Some(Action::Quit) => {
@@ -2065,7 +2171,8 @@ fn draw_help_popup(area: Rect, buf: &mut Buffer) {
   ];
 
   for binding in keybindings {
-    let left_over_wdith = width as usize - binding.0.chars().count() - binding.1.chars().count() - (padding * 2);
+    let left_over_wdith =
+      width as usize - binding.0.chars().count() - binding.1.chars().count() - (padding * 2);
 
     help_text_lines.push(
       vec![
@@ -2117,7 +2224,11 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
   //   model.counter.to_string().yellow(),
   // ])]);
 
-  let layout = Layout::new(Direction::Horizontal, vec![Constraint::Percentage(40), Constraint::Percentage(60)]).split(area);
+  let layout = Layout::new(
+    Direction::Horizontal,
+    vec![Constraint::Percentage(40), Constraint::Percentage(60)],
+  )
+  .split(area);
 
   _ = Block::bordered().border_set(border::THICK).render(layout[0], buf);
 
@@ -2133,7 +2244,13 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
 
   while contact_area.y < layout[0].height && index < model.chats.len() {
     let chat = &mut model.chats[index];
-    render_group(chat, index == model.chat_index, model.pinned_mode == Mode::Groups, contact_area, buf);
+    render_group(
+      chat,
+      index == model.chat_index,
+      model.pinned_mode == Mode::Groups,
+      contact_area,
+      buf,
+    );
     // let last = &(&mut model.chats)[index].last_message();
     // model.chats[index].participants.render(last, contact_area, frame.buffer_mut());
     contact_area.y += contact_height;

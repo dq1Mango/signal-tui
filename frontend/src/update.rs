@@ -180,7 +180,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index = (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index =
+          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -195,7 +196,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     }
 
     Action::ScrollGroup(direction) => {
-      model.chat_index = (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
+      model.chat_index =
+        (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
       //.clamp(0, model.chats.len() as isize - 1) as usize
     }
 
@@ -305,7 +307,9 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
     MessageOption::Copy => {
       let result = execute!(
         std::io::stdout(),
-        CopyToClipboard::to_clipboard_from(&model.current_chat().selected_message().expect("kaboom").body.body)
+        CopyToClipboard::to_clipboard_from(
+          &model.current_chat().selected_message().expect("kaboom").body.body
+        )
       );
 
       if let Err(error) = result {
@@ -325,7 +329,11 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
     MessageOption::Edit => {
       // kinda gotta find the message twice sometimes cuz "cant have more than one mutable borrow
       // yaaaaaaaaaayy..."
-      let body = chat.find_message(chat.message_options.timestamp)?.body.body.clone();
+      let body = chat
+        .find_message(chat.message_options.timestamp)?
+        .body
+        .body
+        .clone();
       chat.text_input.set_content(body);
 
       chat.text_input.mode = TextInputMode::Editing;
@@ -347,7 +355,7 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
 }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
-  // Logger::log(format!("DataMessage: {:#?}", content.clone()));
+  Logger::log(format!("Heres the message: {:#?}", content.clone()));
 
   let ts = content.timestamp();
   let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
@@ -362,9 +370,11 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       body: Some(body),
       quote,
       reaction,
+      attachments,
       ..
     }) => {
       // Logger::log(format!("DataMessage: {:#?}", body.clone()));
+
       // some flex-tape on the thread derivation
       let mut mine = false;
       if let Thread::Contact(uuid) = thread {
@@ -387,9 +397,16 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         })
       };
 
-      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
+      let quote = if let Some(Quote { id, .. }) = quote {
+        id
+      } else {
+        None
+      };
 
-      let reactions = if let Some(data_message::Reaction { emoji: Some(emoji), .. }) = reaction {
+      let reactions = if let Some(data_message::Reaction {
+        emoji: Some(emoji), ..
+      }) = reaction
+      {
         Logger::log("it works like this");
         vec![Reaction {
           emoji: emoji.chars().nth(0)?,
@@ -404,10 +421,14 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         metadata,
         quote,
         reactions,
+        attachments,
       };
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+        Logger::log(format!(
+          "Could not find a chat that matched the id: {:#?}",
+          thread
+        ));
         return None;
       };
 
@@ -417,69 +438,59 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     }
 
     // maybe this is a ratchet acting as a delivery receipt? maybe...?
-    ContentBody::DataMessage(DataMessage {
-      body: None, flags: Some(4), ..
-    }) => {
-      Logger::log("found fake receipt".to_string());
-      // some flex-tape on the thread derivation
-      // let mut mine = false;
-      if let Thread::Contact(uuid) = thread {
-        if uuid == model.account.uuid {
-          thread = Thread::Contact(content.metadata.destination.raw_uuid());
-          // mine = true;
-        }
-      }
-
-      let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
-        return None;
-      };
-
-      let message = chat.last_message_mut();
-      if let Metadata::MyMessage(metadata) = &mut message?.metadata {
-        if metadata.delivered_to.len() == 0 {
-          metadata.delivered_to.push(Receipt {
-            timestamp: timestamp,
-            sender: content.metadata.sender.raw_uuid(),
-          });
-        }
-      }
-
-      // insert_message(model, data, thread, ts, mine)
-    }
+    // ContentBody::DataMessage(DataMessage {
+    //   body: None, flags: Some(4), ..
+    // }) => {
+    //   Logger::log("found fake receipt".to_string());
+    //   // some flex-tape on the thread derivation
+    //   // let mut mine = false;
+    //   if let Thread::Contact(uuid) = thread {
+    //     if uuid == model.account.uuid {
+    //       thread = Thread::Contact(content.metadata.destination.raw_uuid());
+    //       // mine = true;
+    //     }
+    //   }
+    //
+    //   let Some(chat) = model.find_chat(&thread) else {
+    //     Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+    //     return None;
+    //   };
+    //
+    //   let message = chat.last_message_mut();
+    //   if let Metadata::MyMessage(metadata) = &mut message?.metadata {
+    //     if metadata.delivered_to.len() == 0 {
+    //       metadata.delivered_to.push(Receipt {
+    //         timestamp: timestamp,
+    //         sender: content.metadata.sender.raw_uuid(),
+    //       });
+    //     }
+    //   }
+    //
+    //   // insert_message(model, data, thread, ts, mine)
+    // }
     ContentBody::SynchronizeMessage(SyncMessage {
-      sent: Some(Sent {
-        message: Some(DataMessage { body: Some(body), quote, .. }),
-        ..
-      }),
+      sent:
+        Some(Sent {
+          message:
+            Some(DataMessage {
+              body: Some(body),
+              attachments,
+              quote,
+              reaction,
+              ..
+            }),
+          ..
+        }),
       // read: read,
       ..
     }) => {
       let read_by = Vec::new();
-      // for receipt in read {
-      //   let Some(aci) = receipt.sender_aci else {
-      //     continue;
-      //   };
-      //   let Some(timestamp) = receipt.timestamp else { continue };
-      //   let Some(aci) = ServiceId::parse_from_service_id_string(&aci) else {
-      //     Logger::log("plz no".to_string());
-      //     return None;
-      //   };
-      //   read_by.push(Receipt {
-      //     sender: aci.raw_uuid(),
-      //     timestamp: DateTime::from_timestamp_millis(timestamp as i64).expect("i think i gotta ditch chrono"),
-      //   });
-      // }
+
       let metadata = Metadata::MyMessage(MyMessage {
         sent: timestamp,
         delivered_to: read_by.clone(),
         read_by: read_by,
       });
-
-      let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
-        return None;
-      };
 
       // for uuid in chat.participants.members {
       //   if !metadata.read_by.contains(&(uuid, _)) {
@@ -488,13 +499,38 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       //   }
       // }
 
-      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
+      let quote = if let Some(Quote { id, .. }) = quote {
+        id
+      } else {
+        None
+      };
+
+      let reactions = if let Some(data_message::Reaction {
+        emoji: Some(emoji), ..
+      }) = reaction
+      {
+        vec![Reaction {
+          emoji: emoji.chars().nth(0)?,
+          author: content.metadata.sender.raw_uuid(),
+        }]
+      } else {
+        vec![]
+      };
+
+      let Some(chat) = model.find_chat(&thread) else {
+        Logger::log(format!(
+          "Could not find a chat that matched the id: {:#?}",
+          thread
+        ));
+        return None;
+      };
 
       let message = Message {
         body: MultiLineString::new(&body),
         metadata,
         quote,
-        reactions: vec![],
+        reactions,
+        attachments,
       };
 
       chat.insert_message(message);
@@ -506,7 +542,12 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 
         for time in times {
           if let Some(message) = chat.find_message(time) {
-            if let Metadata::MyMessage(MyMessage { read_by, delivered_to, .. }) = &mut message.metadata {
+            if let Metadata::MyMessage(MyMessage {
+              read_by,
+              delivered_to,
+              ..
+            }) = &mut message.metadata
+            {
               let receipt = Receipt {
                 sender: content.metadata.sender.raw_uuid(),
                 timestamp: timestamp,
@@ -538,11 +579,12 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     | ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          message: Some(DataMessage {
-            body: None,
-            reaction: Some(reaction),
-            ..
-          }),
+          message:
+            Some(DataMessage {
+              body: None,
+              reaction: Some(reaction),
+              ..
+            }),
           ..
         }),
       ..
@@ -568,7 +610,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         };
 
         let Some(chat) = model.find_chat(&thread) else {
-          Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+          Logger::log(format!(
+            "Could not find a chat that matched the id: {:#?}",
+            thread
+          ));
           return None;
         };
 
