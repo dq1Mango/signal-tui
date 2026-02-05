@@ -330,9 +330,7 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
     MessageOption::Copy => {
       let result = execute!(
         std::io::stdout(),
-        CopyToClipboard::to_clipboard_from(
-          &model.current_chat().selected_message().expect("kaboom").body.body
-        )
+        CopyToClipboard::to_clipboard_from(&model.current_chat().selected_message().expect("kaboom").body.body)
       );
 
       if let Err(error) = result {
@@ -378,7 +376,7 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
 }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
-  Logger::log(format!("Heres the message: {:#?}", content.clone()));
+  // Logger::log(format!("Heres the message: {:#?}", content.clone()));
 
   let ts = content.timestamp();
   let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
@@ -389,11 +387,13 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
   };
 
   match content.body {
+    // NOTE: there is a good bit of repeated code between this pattern and the next, but i feel
+    // like combining them would make it rly ugly to read
     ContentBody::DataMessage(DataMessage {
       body: Some(body),
       quote,
-      reaction,
       attachments,
+      body_ranges,
       ..
     }) => {
       // Logger::log(format!("DataMessage: {:#?}", body.clone()));
@@ -426,25 +426,26 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         None
       };
 
-      let reactions = if let Some(data_message::Reaction {
-        emoji: Some(emoji), ..
-      }) = reaction
-      {
-        Logger::log("it works like this");
-        vec![Reaction {
-          emoji: emoji.chars().nth(0)?,
-          author: content.metadata.sender.raw_uuid(),
-        }]
-      } else {
-        vec![]
-      };
+      // let reactions = if let Some(data_message::Reaction {
+      //   emoji: Some(emoji), ..
+      // }) = reaction
+      // {
+      //   Logger::log("it works like this");
+      //   vec![Reaction {
+      //     emoji: emoji.chars().nth(0)?,
+      //     author: content.metadata.sender.raw_uuid(),
+      //   }]
+      // } else {
+      //   vec![]
+      // };
 
       let message = Message {
         body: MultiLineString::new(&body),
         metadata,
         quote,
-        reactions,
         attachments,
+        body_ranges,
+        reactions: vec![],
       };
 
       let Some(chat) = model.find_chat(&thread) else {
@@ -499,7 +500,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
               body: Some(body),
               attachments,
               quote,
-              reaction,
+              body_ranges,
               ..
             }),
           ..
@@ -528,17 +529,17 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         None
       };
 
-      let reactions = if let Some(data_message::Reaction {
-        emoji: Some(emoji), ..
-      }) = reaction
-      {
-        vec![Reaction {
-          emoji: emoji.chars().nth(0)?,
-          author: content.metadata.sender.raw_uuid(),
-        }]
-      } else {
-        vec![]
-      };
+      // let reactions = if let Some(data_message::Reaction {
+      //   emoji: Some(emoji), ..
+      // }) = reaction
+      // {
+      //   vec![Reaction {
+      //     emoji: emoji.chars().nth(0)?,
+      //     author: content.metadata.sender.raw_uuid(),
+      //   }]
+      // } else {
+      //   vec![]
+      // };
 
       let Some(chat) = model.find_chat(&thread) else {
         Logger::log(format!(
@@ -552,8 +553,9 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         body: MultiLineString::new(&body),
         metadata,
         quote,
-        reactions,
         attachments,
+        body_ranges,
+        reactions: vec![],
       };
 
       chat.insert_message(message);

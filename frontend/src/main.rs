@@ -28,11 +28,10 @@ use presage::{
     configuration::SignalServers,
     models::Attachment,
     prelude::{ProfileKey, Uuid},
-    proto,
     zkgroup::GroupMasterKeyBytes,
   },
   model::groups::Group,
-  proto::AttachmentPointer,
+  proto::{AttachmentPointer, BodyRange},
   store::Thread,
 };
 
@@ -172,6 +171,7 @@ pub struct Message {
   metadata: Metadata,
   quote: Option<u64>,
   reactions: Vec<Reaction>,
+  body_ranges: Vec<BodyRange>,
   attachments: Vec<AttachmentPointer>,
 }
 
@@ -732,6 +732,7 @@ impl Message {
     Self {
       body: MultiLineString::new("Scroll up to load past messages ... "),
       metadata: Metadata::new_info(Utc::now()),
+      body_ranges: vec![],
       quote: None,
       reactions: vec![],
       attachments: vec![],
@@ -1509,6 +1510,7 @@ impl Chat {
           // what happened
           metadata: Metadata::new_mine(ts, self.display.num_members),
           quote: quote_stamp,
+          body_ranges: vec![],
           reactions: vec![],
           attachments: vec![],
         });
@@ -1960,8 +1962,7 @@ async fn real_main() -> anyhow::Result<()> {
     }
 
     // there probably a better way to make the store linked but this only happens once so idc
-    config_store =
-      SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+    config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
   }
 
   // initialize all the important stuff
