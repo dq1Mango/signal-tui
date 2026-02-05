@@ -796,25 +796,26 @@ impl Message {
     // let message_width: u16 = (area.width as f32 * settings.message_width_ratio + 0.5) as u16 - 2;
 
     let vec_lines: Vec<String> = self.body.as_trimmed_lines(my_area.width - 2);
+    // let mut max_line_width = 0;
     let mut can_shrink = true;
 
     // shrink the message to fit if it does not need mutliple lines
 
-    // if vec_lines.len() > 1 {
-    //   can_shrink = false
-    // }
-    if vec_lines.len() == 1 {
-      // these +- 2's are going to be the death of me
-      my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_width); // <----
-      // ok listen ik this is bad but the only other way i could think of was to modify ^^
-      // and that just seemed wrong ...
-      if let Some(FindMsgResult::Found(msg)) = &quoted {
-        my_area.width = cmp::max(
-          my_area.width,
-          cmp::min(availible_width, msg.body.body.len() as u16 + 2),
-        );
-      }
+    if vec_lines.len() > 1 {
+      can_shrink = false;
     }
+    // if vec_lines.len() == 1 {
+    //   // these +- 2's are going to be the death of me
+    //   my_area.width = cmp::max(vec_lines[0].len() as u16 + 2, min_message_width); // <----
+    //   // ok listen ik this is bad but the only other way i could think of was to modify ^^
+    //   // and that just seemed wrong ...
+    //   if let Some(FindMsgResult::Found(msg)) = &quoted {
+    //     my_area.width = cmp::max(
+    //       my_area.width,
+    //       cmp::min(availible_width, msg.body.body.len() as u16 + 2),
+    //     );
+    //   }
+    // }
 
     let mut lines: Vec<Line> = Vec::new();
     let mut seperators: Vec<usize> = Vec::new();
@@ -828,22 +829,28 @@ impl Message {
         FindMsgResult::Found(msg) => msg.quote_lines(my_area.width as usize - 2, contacts),
         FindMsgResult::NotLoaded => {
           // 29 is length of this "error" message
-          my_area.width = cmp::max(cmp::min(29 + 2, availible_width), my_area.width);
+          // my_area.width = cmp::max(cmp::min(29 + 2, availible_width), my_area.width);
           vec![
             Line::from("Message not loaded..."),
             Line::from("scroll up to see this message"),
-            Line::from("-".repeat(my_area.width as usize - 2)),
+            Line::from("-"),
+            // Line::from("-".repeat(my_area.width as usize - 2)),
           ]
         }
         FindMsgResult::NotExist => {
-          my_area.width = cmp::max(cmp::min(30 + 2, availible_width), my_area.width);
+          // my_area.width = cmp::max(cmp::min(30 + 2, availible_width), my_area.width);
           vec![
             Line::from("Message not found..."),
             Line::from("i suspect smthn has gone wrong"),
-            Line::from("-".repeat(my_area.width as usize - 2)),
+            Line::from("-"),
+            // Line::from("-".repeat(my_area.width as usize - 2)),
           ]
         }
       };
+      seperators.push(2);
+      // if reply_lines.len() > 1 {
+      //   can_shrink = false
+      // }
       for line in reply_lines {
         lines.push(line);
       }
@@ -851,6 +858,21 @@ impl Message {
 
     for yap in vec_lines {
       lines.push(Line::from(yap));
+    }
+
+    if can_shrink {
+      let mut max_line_width = min_message_width as usize;
+      for line in &lines {
+        let length = line.width();
+        if length > max_line_width {
+          max_line_width = length
+        }
+      }
+      my_area.width = max_line_width as u16 + 2;
+    }
+
+    for seperator in seperators {
+      lines[seperator] = Line::from("-".repeat(my_area.width as usize - 2))
     }
     // "allign" the chat to the right if it was sent by you
     // TODO: should add setting to toggle this behavior
@@ -966,7 +988,8 @@ impl Message {
     ]));
 
     lines.push(Line::from(self.body.body.shrink(width)));
-    lines.push(Line::from("-".repeat(width)));
+    lines.push(Line::from("-"));
+    // lines.push(Line::from("-".repeat(width)));
 
     lines
   }
