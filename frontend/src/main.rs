@@ -19,7 +19,7 @@ use std::{
   vec,
 };
 
-use color_eyre::{config, owo_colors::OwoColorize};
+// use color_eyre::{config,};
 use crossterm::{ExecutableCommand, cursor};
 use directories::ProjectDirs;
 use presage::{
@@ -50,7 +50,7 @@ use ratatui::{
   style::{Color, Modifier, Style, Stylize},
   symbols::border,
   text::{Line, Span},
-  widgets::{Block, Gauge, Padding, Paragraph, Widget},
+  widgets::{Block, Gauge, Paragraph, Widget},
 };
 
 use chrono::{DateTime, TimeDelta, Utc};
@@ -281,6 +281,10 @@ pub fn config_dir_path() -> Box<Path> {
 
 pub fn default_db_path() -> String {
   config_dir_path().join("signal-tui.db3").display().to_string()
+}
+
+fn download_dir_path() -> Box<Path> {
+  config_dir_path().join("downloads/").into()
 }
 
 impl Model {
@@ -856,6 +860,23 @@ impl Message {
       }
     }
 
+    if self.attachments.len() > 0 {
+      lines.push(Line::from("Attachments:"));
+      for attache in &self.attachments {
+        lines.push(Line::from(
+          attache
+            .content_type
+            .clone()
+            .unwrap_or("no content type".to_string()),
+        ))
+        // lines.push("attachment here!".into())
+      }
+
+      lines.push(Line::from("(D to download)"));
+      seperators.push(lines.len());
+      lines.push(Line::from("-"));
+    }
+
     for yap in vec_lines {
       lines.push(Line::from(yap));
     }
@@ -1005,8 +1026,16 @@ impl Message {
   }
 
   fn height(&mut self, width: u16) -> u16 {
-    let reply_height = if self.quote.is_some() { 3 } else { 0 };
-    self.body.as_lines(width).len() as u16 + 2 + reply_height
+    let mut height: u16 = 2;
+
+    height += if self.quote.is_some() { 3 } else { 0 };
+    height += if self.attachments.len() > 0 {
+      self.attachments.len() as u16 + 3
+    } else {
+      0
+    };
+    height += self.body.as_lines(width).len() as u16;
+    height
   }
 }
 
@@ -1235,7 +1264,7 @@ impl Chat {
     }
   }
 
-  fn last_message_mut(&mut self) -> Option<&mut Message> {
+  fn _last_message_mut(&mut self) -> Option<&mut Message> {
     let last = self.messages.len();
     if last <= 0 {
       None
@@ -1727,7 +1756,7 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
 
   let mut area = pad_with_border(Color::White, area, buf);
 
-  let mut size: u16 = 1;
+  // let mut size: u16 = 1;
 
   match &state.url {
     Some(url) => {
@@ -1735,7 +1764,7 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
 
       match qr {
         Ok(qr) => {
-          size = qr.size() as u16 + 2;
+          let size = qr.size() as u16 + 2;
           let qr_area = center_div(area, Constraint::Length(size * 2), Constraint::Length(size));
 
           let needed_size = qr.size() as u16 + 2;

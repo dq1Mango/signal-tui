@@ -1,6 +1,11 @@
+use std::path::Path;
+
 use presage::libsignal_service::zkgroup::GroupMasterKeyBytes;
 use presage::model::groups::Group;
+use presage::proto::AttachmentPointer;
+use presage::proto::sync_message::attachment_backfill_response::attachment_data;
 use presage_store_sqlite::SqliteStoreError;
+use tempfile::TempDir;
 use tokio;
 // use tokio::runtime::Builder;
 use tokio::sync::mpsc;
@@ -15,6 +20,7 @@ use crate::Uuid;
 use crate::logger::Logger;
 use crate::signal::Cmd;
 use crate::signal::attachments_tmp_dir;
+use crate::signal::download_attachment;
 use crate::signal::get_contacts;
 use crate::signal::list_groups;
 use crate::signal::process_incoming_message;
@@ -47,11 +53,17 @@ struct ProfileRequest {
   profile_key: Option<ProfileKey>,
 }
 
+struct DownloadRequest {
+  attachment_pointer: AttachmentPointer,
+  dir: Box<Path>,
+}
+
 pub struct SignalSpawner {
   send: mpsc::UnboundedSender<Cmd>,
   contact_requests: Requester<Result<Vec<Contact>, Error<SqliteStoreError>>>,
   group_requests: Requester<Vec<(GroupMasterKeyBytes, Group)>>,
   profile_requests: mpsc::UnboundedSender<ProfileRequest>,
+  download_requests: mpsc::UnboundedSender<DownloadRequest>,
 
   pub self_uuid: Uuid,
 }
@@ -99,9 +111,12 @@ impl SignalSpawner {
     // i feel like the compiler should be able to figure out these types
     let (contacts_sender, mut contact_requests) =
       mpsc::unbounded_channel::<oneshot::Sender<Result<Vec<Contact>, Error<SqliteStoreError>>>>();
-    let (groups_sender, mut group_requests) = mpsc::unbounded_channel::<oneshot::Sender<Vec<(GroupMasterKeyBytes, Group)>>>();
+    let (groups_sender, mut group_requests) =
+      mpsc::unbounded_channel::<oneshot::Sender<Vec<(GroupMasterKeyBytes, Group)>>>();
 
     let (profile_sender, mut profile_requests) = mpsc::unbounded_channel();
+
+    let (downloader, mut download_requests) = mpsc::unbounded_channel();
 
     // let (message_tx, mut message_rx) = mpsc::unbounded_channel();
 
@@ -151,6 +166,10 @@ impl SignalSpawner {
             profile_key,
           } = profile_request;
             _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
+          }
+
+          Some(DownloadRequest {attachment_pointer, dir}) = download_requests.recv() => {
+            download_attachment(&mut manager, &attachment_pointer, &dir).await
           }
 
           Some(content) = messages.next() => {
@@ -206,6 +225,7 @@ impl SignalSpawner {
       contact_requests: contacts_sender,
       profile_requests: profile_sender,
       group_requests: groups_sender,
+      download_requests: downloader,
 
       self_uuid: uuid,
     }
@@ -241,7 +261,11 @@ impl SignalSpawner {
     return rx.await.expect("kaboom");
   }
 
-  pub async fn retrieve_profile(&self, uuid: Uuid, profile_key: Option<ProfileKey>) -> anyhow::Result<Profile> {
+  pub async fn retrieve_profile(
+    &self,
+    uuid: Uuid,
+    profile_key: Option<ProfileKey>,
+  ) -> anyhow::Result<Profile> {
     let (tx, rx) = oneshot::channel();
 
     _ = self.profile_requests.send(ProfileRequest {
@@ -264,6 +288,13 @@ impl SignalSpawner {
 
   pub fn sync_contacts(&self) {
     _ = self.send.send(Cmd::SyncContacts);
+  }
+
+  pub fn download_attachment(&self, pointer: AttachmentPointer, dir: Box<Path>) {
+    _ = self.download_requests.send(DownloadRequest {
+      attachment_pointer: pointer,
+      dir: dir,
+    })
   }
 }
 

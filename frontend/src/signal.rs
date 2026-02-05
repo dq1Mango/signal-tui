@@ -34,6 +34,7 @@ use presage::model::contacts::Contact;
 use presage::model::groups::Group;
 use presage::model::identity::OnNewIdentity;
 use presage::model::messages::Received;
+use presage::proto::AttachmentPointer;
 use presage::proto::EditMessage;
 use presage::proto::NullMessage;
 use presage::proto::ReceiptMessage;
@@ -420,6 +421,41 @@ pub async fn process_incoming_message(
   }
 }
 
+pub async fn download_attachment(
+  manager: &mut MyManager,
+  attachment_pointer: &AttachmentPointer,
+  attachments_tmp_dir: &Path,
+) {
+  let Ok(attachment_data) = manager.get_attachment(attachment_pointer).await else {
+    warn!("failed to fetch attachment");
+    return;
+  };
+
+  let extensions = mime_guess::get_mime_extensions_str(
+    attachment_pointer
+      .content_type
+      .as_deref()
+      .unwrap_or("application/octet-stream"),
+  );
+  let extension = extensions.and_then(|e| e.first()).unwrap_or(&"bin");
+  let filename = attachment_pointer
+    .file_name
+    .clone()
+    .unwrap_or_else(|| Local::now().format("%Y-%m-%d-%H-%M-%s").to_string());
+  let file_path = attachments_tmp_dir.join(format!("presage-{filename}.{extension}",));
+  match fs::write(&file_path, &attachment_data).await {
+    Ok(_) => Logger::log("we saved it!"),
+    // info!(%sender, file_path =% file_path.display(), "saved attachment"),
+    Err(error) => Logger::log(format!("welp couldnt save the attachment\n {}", error)),
+    // Err(error) => error!(
+    //     %sender,
+    //     file_path =% file_path.display(),
+    //     %error,
+    //     "failed to write attachment"
+    // ),
+  }
+}
+
 async fn print_message<S: Store>(manager: &MyManager, notifications: bool, content: &Content) {
   let Ok(thread) = Thread::try_from(content) else {
     warn!("failed to derive thread from content");
@@ -495,7 +531,10 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 
   if let Some(msg) = match &content.body {
-    ContentBody::NullMessage(_) => Some(Msg::Received(&thread, "Null message (for example deleted)".to_string())),
+    ContentBody::NullMessage(_) => Some(Msg::Received(
+      &thread,
+      "Null message (for example deleted)".to_string(),
+    )),
     ContentBody::DataMessage(data_message) => format_data_message(&thread, data_message, manager)
       .await
       .map(|body| Msg::Received(&thread, body)),
@@ -569,7 +608,12 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     println!("{prefix} / {body}");
 
     if notifications {
-      if let Err(error) = Notification::new().summary(&prefix).body(&body).icon("presage").show() {
+      if let Err(error) = Notification::new()
+        .summary(&prefix)
+        .body(&body)
+        .icon("presage")
+        .show()
+      {
         error!(%error, "failed to display desktop notification");
       }
     }
@@ -885,7 +929,14 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, Recipient::Group(master_key), timestamp, data_message, None).await?;
+      send(
+        manager,
+        Recipient::Group(master_key),
+        timestamp,
+        data_message,
+        None,
+      )
+      .await?;
     }
     Cmd::SendToThread {
       message,
@@ -912,7 +963,14 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, recipient_from_thread(thread), timestamp, data_message, quote).await?;
+      send(
+        manager,
+        recipient_from_thread(thread),
+        timestamp,
+        data_message,
+        quote,
+      )
+      .await?;
     }
 
     Cmd::EditMessage {
@@ -979,7 +1037,14 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, recipient_from_thread(thread), timestamp, data_message, None).await?;
+      send(
+        manager,
+        recipient_from_thread(thread),
+        timestamp,
+        data_message,
+        None,
+      )
+      .await?;
     }
     Cmd::DeleteMessage {
       thread,
@@ -1015,7 +1080,14 @@ pub async fn run(
         ));
       }
 
-      send(manager, recipient_from_thread(thread), timestamp, delete_message, None).await?;
+      send(
+        manager,
+        recipient_from_thread(thread),
+        timestamp,
+        delete_message,
+        None,
+      )
+      .await?;
 
       Logger::log("successfully sent the delete message");
     }

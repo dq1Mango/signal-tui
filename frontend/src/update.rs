@@ -21,6 +21,7 @@ use presage::store::Thread;
 use std::sync::Arc;
 
 use crate::logger::Logger;
+use crate::signal::*;
 use crate::*;
 
 #[derive(PartialEq, Debug)]
@@ -55,6 +56,7 @@ pub enum Action {
 
   PickOption,
   DoOption(MessageOption),
+  Download,
 
   SetMode(Mode),
   SetFocus(Focus),
@@ -112,6 +114,7 @@ pub fn handle_key(key: event::KeyEvent, mode: &Arc<Mutex<Mode>>) -> Option<Actio
       KeyCode::Char('i') => Some(Action::SetMode(Mode::Insert)),
       KeyCode::Char('h') | KeyCode::Left => Some(Action::SetMode(Mode::Groups)),
       KeyCode::Char('o') => Some(Action::SetMode(Mode::MessageOptions)),
+      KeyCode::Char('s') => Some(Action::Download),
       KeyCode::Char('?') => Some(Action::SetMode(Mode::Help)),
 
       KeyCode::Char('S') => Some(Action::SetFocus(Focus::Settings)),
@@ -265,6 +268,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::PickOption => return Some(model.current_chat().message_options.select()),
     Action::DoOption(option) => return handle_option(model, spawner, option),
 
+    Action::Download => download_current_message(model, spawner),
+
     Action::Quit => {
       // You can handle cleanup and exit here
       // -- im ok thanks tho
@@ -279,6 +284,24 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
   }
 
   None
+}
+
+pub fn download_current_message(model: &mut Model, spawner: &SignalSpawner) {
+  let Some(message) = model.current_chat().selected_message() else {
+    // this probably isnt a big deal
+    return;
+  };
+
+  // if message.attachments.len() == 0 {
+  //   return
+  // }
+
+  // let tmp_dir = attachments_tmp_dir().expect("kaboom");
+  let dir = download_dir_path();
+
+  for pointer in &message.attachments {
+    spawner.download_attachment(pointer.clone(), dir.clone());
+  }
 }
 
 pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: MessageOption) -> Option<Action> {
