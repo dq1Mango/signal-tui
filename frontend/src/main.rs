@@ -19,6 +19,7 @@ use std::{
   vec,
 };
 
+use color_eyre::owo_colors::OwoColorize;
 // use color_eyre::{config,};
 use crossterm::{ExecutableCommand, cursor};
 use directories::ProjectDirs;
@@ -31,7 +32,7 @@ use presage::{
     zkgroup::GroupMasterKeyBytes,
   },
   model::groups::Group,
-  proto::{AttachmentPointer, BodyRange},
+  proto::{AttachmentPointer, BodyRange, body_range::AssociatedValue},
   store::Thread,
 };
 
@@ -64,7 +65,8 @@ use crate::settings::Settings;
 use crate::signal::{get_quote, link_device};
 use crate::update::*;
 use crate::{
-  logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd, update::LinkingAction,
+  logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd,
+  update::LinkingAction,
 };
 
 // there are three different models to represent all the parts of linking a device, loading
@@ -166,12 +168,54 @@ pub struct Reaction {
 }
 
 #[derive(Debug, Clone)]
+pub struct RatatuiBodyRange {
+  start: u32,
+  length: u32,
+  style: Style,
+}
+
+impl RatatuiBodyRange {
+  fn try_from(value: &BodyRange) -> Option<Self> {
+    let styles: Vec<Style> = vec![
+      Style::default(),
+      Style::default().bold(),
+      Style::default().italic(),
+      Style::default().bg(Color::Gray),
+      Style::default(),
+      Style::default(),
+    ];
+
+    let start = value.start?;
+    let length = value.length?;
+    let style = match &value.associated_value {
+      Some(AssociatedValue::Style(style_num)) => {
+        if *style_num >= 0 && *style_num < styles.len() as i32 {
+          styles[*style_num as usize]
+        } else {
+          return None;
+        }
+      }
+      Some(AssociatedValue::MentionAci(x)) => {
+        Logger::log(format!("we mentioned an ACI: {:?}", x));
+        return None;
+      }
+      None => return None,
+    };
+
+    Some(Self {
+      start,
+      length,
+      style,
+    })
+  }
+}
+
+#[derive(Debug, Clone)]
 pub struct Message {
   body: MultiLineString,
   metadata: Metadata,
   quote: Option<u64>,
   reactions: Vec<Reaction>,
-  body_ranges: Vec<BodyRange>,
   attachments: Vec<AttachmentPointer>,
 }
 
@@ -280,7 +324,10 @@ pub fn config_dir_path() -> Box<Path> {
 }
 
 pub fn default_db_path() -> String {
-  config_dir_path().join("signal-tui.db3").display().to_string()
+  config_dir_path()
+    .join("signal-tui.db3")
+    .display()
+    .to_string()
 }
 
 fn download_dir_path() -> Box<Path> {
@@ -732,7 +779,6 @@ impl Message {
     Self {
       body: MultiLineString::new("Scroll up to load past messages ... "),
       metadata: Metadata::new_info(Utc::now()),
-      body_ranges: vec![],
       quote: None,
       reactions: vec![],
       attachments: vec![],
@@ -952,7 +998,9 @@ impl Message {
         if x.all_read(num_members) {
           Span::styled(
             [check_icon, check_icon].concat(),
-            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+            Style::default()
+              .fg(Color::Magenta)
+              .add_modifier(Modifier::BOLD),
           )
         } else if x.all_delivered(num_members) {
           Span::styled(
@@ -1104,7 +1152,14 @@ impl Chat {
     }
   }
 
-  fn render(&mut self, area: Rect, buf: &mut Buffer, settings: &Settings, contacts: Contacts, mode: Mode) {
+  fn render(
+    &mut self,
+    area: Rect,
+    buf: &mut Buffer,
+    settings: &Settings,
+    contacts: Contacts,
+    mode: Mode,
+  ) {
     let input_lines = self.text_input.body.rows(area.width - 3);
     // Logger::log("this is our input: ".to_string());
     // Logger::log(format_vec(self.text_input.body.as_lines(area.width - 2)));
@@ -1128,9 +1183,13 @@ impl Chat {
     ])
     .split(area);
 
-    self
-      .text_input
-      .render(mode == Mode::Insert, reply_message, &contacts, layout[1], buf);
+    self.text_input.render(
+      mode == Mode::Insert,
+      reply_message,
+      &contacts,
+      layout[1],
+      buf,
+    );
 
     // kind of a sketchy shadow here but the layout[1] is used like once
     let area = layout[0];
@@ -1427,7 +1486,9 @@ impl Chat {
   }
 
   fn delete_message(&mut self, timestamp: u64) {
-    let index = self.index(timestamp).expect("could not find message to delete");
+    let index = self
+      .index(timestamp)
+      .expect("could not find message to delete");
     self.messages.remove(index);
 
     if self.location.index >= index {
@@ -1510,7 +1571,6 @@ impl Chat {
           // what happened
           metadata: Metadata::new_mine(ts, self.display.num_members),
           quote: quote_stamp,
-          body_ranges: vec![],
           reactions: vec![],
           attachments: vec![],
         });
@@ -1671,8 +1731,12 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
   let area = pad_with_border(color, area, buf);
 
-  let layout =
-    Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
+  let layout = Layout::horizontal([
+    Constraint::Length(7),
+    Constraint::Min(15),
+    Constraint::Length(6),
+  ])
+  .split(area);
 
   // let image = StatefulImage::default().resize(Resize::Crop(None));
   // let mut pfp = match &self.pfp {
@@ -1746,7 +1810,10 @@ fn render_qr(qr: QrCode, mut area: Rect, buf: &mut Buffer) {
           false => Color::White,
         }),
       )
-      .render(one_by_two_area(area.x + 2 * x as u16, area.y + y as u16), buf);
+      .render(
+        one_by_two_area(area.x + 2 * x as u16, area.y + y as u16),
+        buf,
+      );
       // (... paint qr.get_module(x, y) ...)
     }
   }
@@ -1816,7 +1883,9 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
 }
 
 fn center_div(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
-  let [area] = Layout::horizontal([horizontal]).flex(Flex::Center).areas(area);
+  let [area] = Layout::horizontal([horizontal])
+    .flex(Flex::Center)
+    .areas(area);
   let [area] = Layout::vertical([vertical]).flex(Flex::Center).areas(area);
   area
 }
@@ -1962,7 +2031,8 @@ async fn real_main() -> anyhow::Result<()> {
     }
 
     // there probably a better way to make the store linked but this only happens once so idc
-    config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+    config_store =
+      SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
   }
 
   // initialize all the important stuff
@@ -1973,7 +2043,10 @@ async fn real_main() -> anyhow::Result<()> {
   let mut model = Model::init();
   model.mode = Arc::clone(&mode);
   model.account.uuid = manager.registration_data().service_ids.aci;
-  Logger::log(format!("well isnt this convenient: {:#?}", &model.account.uuid));
+  Logger::log(format!(
+    "well isnt this convenient: {:#?}",
+    &model.account.uuid
+  ));
 
   let settings = &Settings::init();
 
@@ -2283,7 +2356,9 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
   )
   .split(area);
 
-  _ = Block::bordered().border_set(border::THICK).render(layout[0], buf);
+  _ = Block::bordered()
+    .border_set(border::THICK)
+    .render(layout[0], buf);
 
   let contact_height = 3 + 2;
 

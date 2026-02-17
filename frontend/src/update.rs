@@ -183,8 +183,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index =
-          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index = (chat.location.index as isize + lines)
+          .clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -304,7 +304,11 @@ pub fn download_current_message(model: &mut Model, spawner: &SignalSpawner) {
   }
 }
 
-pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: MessageOption) -> Option<Action> {
+pub fn handle_option(
+  model: &mut Model,
+  spawner: &SignalSpawner,
+  option: MessageOption,
+) -> Option<Action> {
   let chat = model.current_chat();
   let message = chat.find_message(chat.message_options.timestamp)?;
 
@@ -330,7 +334,14 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
     MessageOption::Copy => {
       let result = execute!(
         std::io::stdout(),
-        CopyToClipboard::to_clipboard_from(&model.current_chat().selected_message().expect("kaboom").body.body)
+        CopyToClipboard::to_clipboard_from(
+          &model
+            .current_chat()
+            .selected_message()
+            .expect("kaboom")
+            .body
+            .body
+        )
       );
 
       if let Err(error) = result {
@@ -439,12 +450,19 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       //   vec![]
       // };
 
+      let mut ranges = Vec::with_capacity(body_ranges.len());
+
+      for range in body_ranges {
+        if let Some(r) = RatatuiBodyRange::try_from(&range) {
+          ranges.push(r)
+        }
+      }
+
       let message = Message {
-        body: MultiLineString::new(&body),
+        body: MultiLineString::new_with_ranges(&body, ranges),
         metadata,
         quote,
         attachments,
-        body_ranges,
         reactions: vec![],
       };
 
@@ -540,6 +558,15 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       // } else {
       //   vec![]
       // };
+      //
+
+      let mut ranges = Vec::with_capacity(body_ranges.len());
+
+      for range in body_ranges {
+        if let Some(r) = RatatuiBodyRange::try_from(&range) {
+          ranges.push(r)
+        }
+      }
 
       let Some(chat) = model.find_chat(&thread) else {
         Logger::log(format!(
@@ -550,11 +577,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       };
 
       let message = Message {
-        body: MultiLineString::new(&body),
+        body: MultiLineString::new_with_ranges(&body, ranges),
         metadata,
         quote,
         attachments,
-        body_ranges,
         reactions: vec![],
       };
 

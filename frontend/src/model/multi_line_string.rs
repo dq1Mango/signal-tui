@@ -1,10 +1,11 @@
 use std::cmp::min;
 
-use crate::{MyStringUtils, logger::Logger};
+use crate::{MyStringUtils, RatatuiBodyRange, logger::Logger};
 
 #[derive(Debug, Default, Clone)]
 pub struct MultiLineString {
   pub body: String,
+  pub body_ranges: Vec<RatatuiBodyRange>,
   cached_lines: Vec<String>,
   cached_width: u16,
   cached_length: u16,
@@ -38,10 +39,17 @@ impl MultiLineString {
   pub fn new(str: &str) -> Self {
     Self {
       body: parse_dangerous_chars(str.to_string()),
+      body_ranges: vec![],
       cached_lines: vec!["".to_string()],
       cached_width: 0,
       cached_length: 0,
     }
+  }
+
+  pub fn new_with_ranges(str: &str, ranges: Vec<RatatuiBodyRange>) -> Self {
+    let mut output = Self::new(str);
+    output.body_ranges = ranges;
+    output
   }
 
   pub fn set_content(&mut self, string: String) {
