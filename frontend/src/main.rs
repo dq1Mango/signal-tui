@@ -65,7 +65,10 @@ use crate::settings::Settings;
 use crate::signal::{get_quote, link_device};
 use crate::update::*;
 use crate::{
-  logger::Logger, model::MultiLineString, mysignal::SignalSpawner, signal::Cmd,
+  logger::Logger,
+  model::{MultiLineString, MyLine, MySpan},
+  mysignal::SignalSpawner,
+  signal::Cmd,
   update::LinkingAction,
 };
 
@@ -572,7 +575,7 @@ impl TextInput {
 
     // logger.log(format!("this is the first line: {}", self.cursor_index));
     for yap in self.body.as_trimmed_lines(area.width - 3) {
-      lines.push(Line::from(yap));
+      lines.push(yap.into());
     }
 
     Paragraph::new(lines).block(block).render(area, buf);
@@ -846,7 +849,7 @@ impl Message {
     my_area.width = availible_width;
     // let message_width: u16 = (area.width as f32 * settings.message_width_ratio + 0.5) as u16 - 2;
 
-    let vec_lines: Vec<String> = self.body.as_trimmed_lines(my_area.width - 2);
+    let vec_lines: Vec<MyLine> = self.body.as_trimmed_lines(my_area.width - 2);
     // let mut max_line_width = 0;
     let mut can_shrink = true;
 
@@ -925,7 +928,7 @@ impl Message {
     }
 
     for yap in vec_lines {
-      lines.push(Line::from(yap));
+      lines.push(yap.into());
     }
 
     if can_shrink {
@@ -1755,10 +1758,10 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
   // display the last message sent in the chat if there was one (there usually will be one)
   if let Some(last_message) = chat.last_message() {
-    let message_text: Vec<String> = last_message.body.fit(layout[1].width, layout[1].height - 1);
+    let message_text: Vec<MyLine> = last_message.body.fit(layout[1].width, layout[1].height - 1);
 
     for line in message_text {
-      innner_lines.push(Line::from(line));
+      innner_lines.push(line.into());
     }
 
     let time = last_message.format_duration();
