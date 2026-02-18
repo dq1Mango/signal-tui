@@ -59,11 +59,11 @@ impl From<char> for CharSpan {
     }
   }
 }
-impl From<String> for CharSpan {
-  fn from(value: String) -> Self {
-    value.chars().nth(0).unwrap().into()
-  }
-}
+// impl From<String> for CharSpan {
+//   fn from(value: String) -> Self {
+//     value.chars().nth(0).unwrap().into()
+//   }
+// }
 
 impl Into<Span<'_>> for &CharSpan {
   fn into(self) -> Span<'static> {
@@ -105,7 +105,8 @@ impl From<&str> for MyLine {
 
 impl From<String> for MyLine {
   fn from(value: String) -> Self {
-    Self(vec![value.into()])
+    // Self(value.chars().map(|x| x.into()).collect())
+    Self::from(value.as_str())
   }
 }
 
