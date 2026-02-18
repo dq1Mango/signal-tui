@@ -3,7 +3,7 @@ use std::cmp::min;
 use crate::{MyStringUtils, RatatuiBodyRange, logger::Logger};
 use futures::stream::Iter;
 use ratatui::{
-  style::Style,
+  style::{Style, Stylize},
   text::{Line, Span},
 };
 
@@ -47,6 +47,39 @@ impl MySpan {
 }
 
 #[derive(Debug, Default, Clone)]
+pub struct CharSpan {
+  style: Style,
+  char: char,
+}
+
+impl From<char> for CharSpan {
+  fn from(value: char) -> Self {
+    Self {
+      style: Style::default(),
+      char: value,
+    }
+  }
+}
+
+pub fn split_this_is_dumb(victim: Vec<CharSpan>, pattern: char) -> Vec<Vec<CharSpan>> {
+  let mut splitted = vec![];
+
+  let mut i = 0;
+  let mut last_splilt = 0;
+  while i < victim.len() {
+    if victim[i].char == pattern {
+      splitted.push(victim[last_splilt..i].to_vec());
+      last_splilt = i;
+    }
+    i += 1;
+  }
+
+  splitted.push(victim[last_splilt..i].to_vec());
+
+  splitted
+}
+
+#[derive(Debug, Default, Clone)]
 pub struct MyLine(Vec<MySpan>);
 
 impl From<&str> for MyLine {
@@ -58,6 +91,30 @@ impl From<&str> for MyLine {
 impl From<String> for MyLine {
   fn from(value: String) -> Self {
     Self(vec![value.into()])
+  }
+}
+
+impl From<Vec<CharSpan>> for MyLine {
+  fn from(value: Vec<CharSpan>) -> Self {
+    // let mut spans = Vec::with_capacity(value.len());
+    //
+    // for span in value {
+    //   spans.push(MySpan {
+    //     style: span.style,
+    //     content: span.char.into(),
+    //   })
+    // }
+
+    // wow look at these iters they r so cool
+    Self(
+      value
+        .iter()
+        .map(|span| MySpan {
+          style: span.style,
+          content: span.char.into(),
+        })
+        .collect(),
+    )
   }
 }
 
@@ -85,6 +142,7 @@ impl MyLine {
 pub struct MultiLineString {
   pub body: String,
   pub body_ranges: Vec<RatatuiBodyRange>,
+  pub usefull: Vec<CharSpan>,
   cached_lines: Vec<MyLine>,
   cached_width: u16,
   cached_length: u16,
@@ -119,6 +177,7 @@ impl MultiLineString {
     Self {
       body: parse_dangerous_chars(str.to_string()),
       body_ranges: vec![],
+      usefull: str.chars().map(|x| x.into()).collect(),
       cached_lines: vec!["".into()],
       cached_width: 0,
       cached_length: 0,
@@ -127,6 +186,16 @@ impl MultiLineString {
 
   pub fn new_with_ranges(str: &str, ranges: Vec<RatatuiBodyRange>) -> Self {
     let mut output = Self::new(str);
+
+    for range in &ranges {
+      let mut i = 0;
+      while i < range.length as usize {
+        // POTENTIAL PANIC
+        output.usefull[i + range.start as usize].style = range.style;
+
+        i += 1
+      }
+    }
     output.body_ranges = ranges;
     output
   }
@@ -154,9 +223,9 @@ impl MultiLineString {
 
     let availible_width = width as usize;
 
-    for known_line in self.body.split("\n") {
+    for known_line in split_this_is_dumb(self.usefull.clone(), '\n') {
       // println!("heres the line: {}", &known_line);
-      let mut new_line = String::from("");
+      let mut new_line: Vec<CharSpan> = vec![];
       // collumn index
       let mut coldex = 0;
       // if known_line == "" {
@@ -164,35 +233,43 @@ impl MultiLineString {
       //   continue;
       // }
       // this .split() is a little sketchy but it works mostly
-      for yap in known_line.split(" ") {
-        let yap = yap.chars();
-        let mut length = yap.clone().count();
+      for yap in split_this_is_dumb(known_line, ' ') {
+        // let yap = yap.chars();
 
-        if coldex + length <= availible_width || length == 0 {
-          new_line.push_str(yap.as_str());
-          new_line.push_str(" ");
-          coldex += length + 1;
+        if coldex + yap.len() <= availible_width || yap.len() == 0 {
+          coldex += yap.len() + 1;
+          for span in yap {
+            new_line.push(span);
+            // new_line.push(MySpan {
+            //   style: span.style,
+            //   content: span.char.into(),
+            // })
+          }
+          new_line.push(' '.into());
         } else {
           // println!("shouldnt go here");
           // INCOMPLETE LOGIC!!!
-          if new_line != "" {
-            lines.push(new_line.clone().into());
+          // lowkey forget what i meant by that...
+          if new_line.len() > 0 {
+            // lines.push(MyLine::from(new_line.clone().iter().flatten().collect()));
+            lines.push(MyLine::from(new_line.clone()));
           }
 
           let mut index = 0;
+          let mut remaining_length = yap.len();
 
-          let yap: Vec<_> = yap.collect();
-          while length >= availible_width {
-            lines.push(string_from_chars(&yap[index..index + availible_width]).into());
-            length -= availible_width;
+          // let yap: Vec<_> = yap.collect();
+          while remaining_length >= availible_width {
+            lines.push(MyLine::from(yap[index..index + availible_width].to_vec()));
+            remaining_length -= availible_width;
             index += availible_width;
           }
 
-          new_line = string_from_chars(&yap[index..]);
+          new_line = yap[index..].to_vec();
           coldex = new_line.len();
 
           if new_line.len() > 0 {
-            new_line.push_str(" ");
+            new_line.push(' '.into());
             coldex += 1;
           }
         }

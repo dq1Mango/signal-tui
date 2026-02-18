@@ -19,7 +19,6 @@ use std::{
   vec,
 };
 
-use color_eyre::owo_colors::OwoColorize;
 // use color_eyre::{config,};
 use crossterm::{ExecutableCommand, cursor};
 use directories::ProjectDirs;
@@ -193,6 +192,7 @@ impl RatatuiBodyRange {
     let style = match &value.associated_value {
       Some(AssociatedValue::Style(style_num)) => {
         if *style_num >= 0 && *style_num < styles.len() as i32 {
+          Logger::log(format!("feeling stylish: {}", *style_num));
           styles[*style_num as usize]
         } else {
           return None;
