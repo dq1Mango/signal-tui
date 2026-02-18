@@ -601,6 +601,9 @@ impl TextInput {
 
     let (mut index, mut row) = (0, 0);
 
+    Logger::log(format!("looking for an index of: {}", self.cursor_index));
+    Logger::log(format!("the first row has length: {}", lines[0].len()));
+
     while (index + lines[row].len() as u16) < self.cursor_index {
       index += lines[row].len() as u16;
       pos.y += 1;

@@ -11,6 +11,7 @@ use crate::{config_dir_path, logger::Logger};
 pub struct Settings {
   pub borders: bool,
   pub message_width_ratio: f32,
+  pub md_formatting: bool,
   // pub _identity: String,
 }
 
@@ -23,6 +24,7 @@ impl Settings {
     Self {
       borders: true,
       message_width_ratio: 0.8,
+      md_formatting: true,
     }
   }
   pub fn init() -> Self {
@@ -53,8 +55,12 @@ impl Settings {
         Logger::log(format!("heres an error also {}", err));
 
         Logger::log("writing defaults to config file ...");
-        let mut file = File::create_new(config_file_path()).expect("hmmm it wasnt there a second ago???");
-        let err = File::write_all(&mut file, toml::to_string(&Self::defaults()).unwrap().as_bytes());
+        let mut file =
+          File::create_new(config_file_path()).expect("hmmm it wasnt there a second ago???");
+        let err = File::write_all(
+          &mut file,
+          toml::to_string(&Self::defaults()).unwrap().as_bytes(),
+        );
         if let Err(err) = err {
           Logger::log(format!("wow we cant do anything right: {}", err));
         }

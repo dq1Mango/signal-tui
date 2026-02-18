@@ -1,13 +1,12 @@
 use std::cmp::min;
 
 use crate::{MyStringUtils, RatatuiBodyRange, logger::Logger};
-use futures::stream::Iter;
 use ratatui::{
-  style::{Style, Stylize},
+  style::Style,
   text::{Line, Span},
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct MySpan {
   style: Style,
   content: String,
@@ -46,7 +45,7 @@ impl MySpan {
   }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct CharSpan {
   style: Style,
   char: char,
@@ -60,6 +59,20 @@ impl From<char> for CharSpan {
     }
   }
 }
+impl From<String> for CharSpan {
+  fn from(value: String) -> Self {
+    value.chars().nth(0).unwrap().into()
+  }
+}
+
+impl Into<Span<'_>> for &CharSpan {
+  fn into(self) -> Span<'static> {
+    Span {
+      style: self.style,
+      content: self.char.to_string().into(),
+    }
+  }
+}
 
 pub fn split_this_is_dumb(victim: Vec<CharSpan>, pattern: char) -> Vec<Vec<CharSpan>> {
   let mut splitted = vec![];
@@ -69,22 +82,24 @@ pub fn split_this_is_dumb(victim: Vec<CharSpan>, pattern: char) -> Vec<Vec<CharS
   while i < victim.len() {
     if victim[i].char == pattern {
       splitted.push(victim[last_splilt..i].to_vec());
-      last_splilt = i;
+      last_splilt = i + 1;
     }
     i += 1;
   }
 
-  splitted.push(victim[last_splilt..i].to_vec());
+  if i <= victim.len() {
+    splitted.push(victim[last_splilt..i].to_vec());
+  }
 
   splitted
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct MyLine(Vec<MySpan>);
+#[derive(Default, Clone, PartialEq)]
+pub struct MyLine(pub Vec<CharSpan>);
 
 impl From<&str> for MyLine {
   fn from(value: &str) -> Self {
-    Self(vec![value.into()])
+    Self(value.chars().map(|x| x.into()).collect())
   }
 }
 
@@ -106,15 +121,7 @@ impl From<Vec<CharSpan>> for MyLine {
     // }
 
     // wow look at these iters they r so cool
-    Self(
-      value
-        .iter()
-        .map(|span| MySpan {
-          style: span.style,
-          content: span.char.into(),
-        })
-        .collect(),
-    )
+    Self(value)
   }
 }
 
@@ -128,13 +135,51 @@ impl Into<Line<'_>> for MyLine {
   }
 }
 
+impl std::fmt::Display for MyLine {
+  fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    for span in &self.0 {
+      print!("{}", span.char)
+    }
+
+    Ok(())
+  }
+}
+
+impl std::fmt::Debug for MyLine {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    // println!("i gywatt called");
+    for span in &self.0 {
+      write!(f, "{}", span.char)?;
+    }
+
+    Ok(())
+  }
+}
+
 impl MyLine {
   pub fn len(&self) -> usize {
-    let mut length = 0;
-    for span in &self.0 {
-      length += span.len()
+    self.0.len()
+    // let mut length = 0;
+    // for span in &self.0 {
+    //   length += span.len()
+    // }
+    // length
+  }
+
+  pub fn trim(&self) -> MyLine {
+    let mut trimmed = self.clone();
+    let mut i = self.0.len() as isize - 1;
+
+    while i > 0 {
+      if trimmed.0[i as usize].char == ' ' {
+        trimmed.0.pop();
+      } else {
+        break;
+      }
+      i -= 1;
     }
-    length
+
+    trimmed
   }
 }
 
@@ -201,7 +246,9 @@ impl MultiLineString {
   }
 
   pub fn set_content(&mut self, string: String) {
-    self.body = parse_dangerous_chars(string);
+    self.body = parse_dangerous_chars(string.clone());
+    self.usefull = MyLine::from(string).0;
+    self.body_ranges = vec![];
     self.cached_lines = vec![];
     self.cached_width = 0;
     self.cached_length = 0;
@@ -211,10 +258,16 @@ impl MultiLineString {
     self
       .body
       .insert(self.body.byte_index(index), replace_dangerous_char(char));
+
+    self.usefull.insert(
+      self.body.byte_index(index),
+      replace_dangerous_char(char).into(),
+    );
   }
 
   pub fn remove(&mut self, index: usize) {
     self.body.remove(self.body.byte_index(index));
+    self.usefull.remove(self.body.byte_index(index));
   }
 
   // I hate handling utf-8
@@ -247,9 +300,9 @@ impl MultiLineString {
           }
           new_line.push(' '.into());
         } else {
-          // println!("shouldnt go here");
           // INCOMPLETE LOGIC!!!
           // lowkey forget what i meant by that...
+
           if new_line.len() > 0 {
             // lines.push(MyLine::from(new_line.clone().iter().flatten().collect()));
             lines.push(MyLine::from(new_line.clone()));
@@ -258,8 +311,7 @@ impl MultiLineString {
           let mut index = 0;
           let mut remaining_length = yap.len();
 
-          // let yap: Vec<_> = yap.collect();
-          while remaining_length >= availible_width {
+          while remaining_length > availible_width {
             lines.push(MyLine::from(yap[index..index + availible_width].to_vec()));
             remaining_length -= availible_width;
             index += availible_width;
@@ -307,9 +359,17 @@ impl MultiLineString {
   }
 
   pub fn as_trimmed_lines(&mut self, width: u16) -> Vec<MyLine> {
-    // let untrimmed = self.as_lines(width);
+    let untrimmed = self.as_lines(width);
+
+    let mut trimmed = Vec::with_capacity(untrimmed.len());
+    for line in untrimmed {
+      trimmed.push(line.trim())
+    }
+
+    trimmed
+
     // trim_vec(untrimmed.to_vec())
-    self._as_owned_lines(width)
+    // self._as_owned_lines(width)
   }
 
   pub fn rows(&mut self, width: u16) -> u16 {
