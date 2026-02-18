@@ -5,7 +5,6 @@ use presage::model::groups::Group;
 use presage::proto::AttachmentPointer;
 use presage::proto::sync_message::attachment_backfill_response::attachment_data;
 use presage_store_sqlite::SqliteStoreError;
-use tempfile::TempDir;
 use tokio;
 // use tokio::runtime::Builder;
 use tokio::sync::mpsc;
@@ -250,7 +249,10 @@ impl SignalSpawner {
   // }
 
   pub fn spawn(&self, task: Cmd) {
-    self.send.send(task).expect("Thread with LocalSet has shut down.");
+    self
+      .send
+      .send(task)
+      .expect("Thread with LocalSet has shut down.");
   }
 
   pub async fn list_contacts(&self) -> Result<Vec<Contact>, Error<SqliteStoreError>> {

@@ -11,14 +11,12 @@ use anyhow::{Context as _, anyhow, bail};
 use base64::prelude::*;
 use chrono::Local;
 use chrono::Utc;
-use directories::ProjectDirs;
 use futures::StreamExt;
 use futures::{channel::oneshot, future, pin_mut};
 use mime_guess::mime::APPLICATION_OCTET_STREAM;
 use notify_rust::Notification;
 use presage::Error;
 use presage::libsignal_service::configuration::SignalServers;
-use presage::libsignal_service::content::Metadata;
 use presage::libsignal_service::content::Reaction;
 use presage::libsignal_service::pre_keys::PreKeysStore;
 use presage::libsignal_service::prelude::ProfileKey;
@@ -67,7 +65,6 @@ use tracing::{error, info};
 use url::Url;
 
 use crate::Message;
-use crate::Model;
 use crate::MyManager;
 use crate::NotMyMessage;
 use crate::Profile;
@@ -490,14 +487,19 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
           return None;
         };
 
-        let ContentBody::DataMessage(DataMessage { body: Some(body), .. }) = message.body else {
+        let ContentBody::DataMessage(DataMessage {
+          body: Some(body), ..
+        }) = message.body
+        else {
           warn!("message reacted to has no body");
           return None;
         };
 
         Some(format!("Reacted with {emoji} to message: \"{body}\""))
       }
-      DataMessage { body: Some(body), .. } => Some(body.to_string()),
+      DataMessage {
+        body: Some(body), ..
+      } => Some(body.to_string()),
       _ => Some("Empty data message".to_string()),
     }
   }
@@ -581,8 +583,12 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
         receipt_message::Type::try_from(receipt_type.unwrap_or_default()).unwrap()
       ),
     )),
-    ContentBody::StoryMessage(story) => Some(Msg::Received(&thread, format!("new story: {story:?}"))),
-    ContentBody::PniSignatureMessage(_) => Some(Msg::Received(&thread, "got PNI signature message".into())),
+    ContentBody::StoryMessage(story) => {
+      Some(Msg::Received(&thread, format!("new story: {story:?}")))
+    }
+    ContentBody::PniSignatureMessage(_) => {
+      Some(Msg::Received(&thread, "got PNI signature message".into()))
+    }
   } {
     let ts = content.timestamp();
     let (prefix, body) = match msg {
@@ -639,7 +645,8 @@ async fn receive(
         //println!("got contacts synchronization"),
       }
       Received::Content(content) => {
-        process_incoming_message(manager, attachments_tmp_dir.path(), notifications, &content).await
+        process_incoming_message(manager, attachments_tmp_dir.path(), notifications, &content)
+          .await
       }
     }
 
@@ -651,25 +658,33 @@ async fn receive(
   Ok(())
 }
 
-pub fn link_device(servers: SignalServers, device_name: String, output: mpsc::UnboundedSender<Action>) {
+pub fn link_device(
+  servers: SignalServers,
+  device_name: String,
+  output: mpsc::UnboundedSender<Action>,
+) {
   spawn_local(async move {
     // let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
     let db_path = default_db_path();
 
-    let config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust)
-      .await
-      .unwrap();
+    let config_store =
+      SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust)
+        .await
+        .unwrap();
 
     let (provisioning_link_tx, provisioning_link_rx) = oneshot::channel();
     let output1 = output.clone();
-    Logger::log(format!("about to send something, but gonna sleep a little first"));
+    Logger::log(format!(
+      "about to send something, but gonna sleep a little first"
+    ));
     sleep(Duration::from_secs(2)).await;
 
     let manager = future::join(
       async move {
         sleep(Duration::from_secs(2)).await;
         Logger::log(format!("this isnt even my fault ..."));
-        Manager::link_secondary_device(config_store, servers, device_name, provisioning_link_tx).await
+        Manager::link_secondary_device(config_store, servers, device_name, provisioning_link_tx)
+          .await
       },
       async move {
         Logger::log(format!("about to send something, feeling nervous"));
@@ -880,7 +895,9 @@ pub async fn run(
       let current_device_id: u8 = manager.device_id().into();
 
       for device in devices {
-        let device_name = device.name.unwrap_or_else(|| "(no device name)".to_string());
+        let device_name = device
+          .name
+          .unwrap_or_else(|| "(no device name)".to_string());
         let current_marker = if device.id == current_device_id {
           "(this device)"
         } else {
@@ -909,7 +926,14 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, Recipient::Contact(uuid), timestamp, data_message, None).await?;
+      send(
+        manager,
+        Recipient::Contact(uuid),
+        timestamp,
+        data_message,
+        None,
+      )
+      .await?;
     }
     Cmd::SendToGroup {
       message,
@@ -1000,7 +1024,14 @@ pub async fn run(
           data_message: Some(targeted_message),
           target_sent_timestamp: Some(target_timestamp),
         };
-        send(manager, recipient_from_thread(thread), timestamp, content, None).await?;
+        send(
+          manager,
+          recipient_from_thread(thread),
+          timestamp,
+          content,
+          None,
+        )
+        .await?;
         Logger::log("successfully sent the edit message");
       }
     }

@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-use crate::{MyStringUtils, RatatuiBodyRange, logger::Logger};
+use crate::{MyStringUtils, RatatuiBodyRange};
 use ratatui::{
   style::Style,
   text::{Line, Span},
@@ -36,12 +36,6 @@ impl Into<Span<'_>> for &MySpan {
       style: self.style,
       content: self.content.clone().into(),
     }
-  }
-}
-
-impl MySpan {
-  fn len(&self) -> usize {
-    self.content.len()
   }
 }
 
@@ -192,15 +186,6 @@ pub struct MultiLineString {
   cached_lines: Vec<MyLine>,
   cached_width: u16,
   cached_length: u16,
-}
-
-fn string_from_chars(chars: &[char]) -> String {
-  let mut string = String::new();
-  for chr in chars {
-    string.push_str(&chr.to_string());
-  }
-
-  string
 }
 
 fn replace_dangerous_char(input: char) -> char {

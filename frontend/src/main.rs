@@ -9,7 +9,6 @@ mod tests;
 mod update;
 
 use std::{
-  cmp,
   collections::HashMap,
   fmt::Debug,
   hash::Hash,
@@ -37,7 +36,7 @@ use presage::{
 
 use presage::manager::Manager;
 use presage::model::messages::Received;
-use presage::store::{StateStore, Store};
+use presage::store::StateStore;
 use presage_store_sqlite::{OnNewIdentity, SqliteStore};
 // use crate::database::{OnNewIdentity, SqliteStore};
 
@@ -65,7 +64,7 @@ use crate::signal::{get_quote, link_device};
 use crate::update::*;
 use crate::{
   logger::Logger,
-  model::{MultiLineString, MyLine, MySpan},
+  model::{MultiLineString, MyLine},
   mysignal::SignalSpawner,
   signal::Cmd,
   update::LinkingAction,
