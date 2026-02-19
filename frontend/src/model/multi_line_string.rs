@@ -7,39 +7,6 @@ use ratatui::{
 };
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct MySpan {
-  style: Style,
-  content: String,
-}
-
-impl From<&str> for MySpan {
-  fn from(value: &str) -> Self {
-    Self {
-      style: Style::default(),
-      content: value.to_string(),
-    }
-  }
-}
-
-impl From<String> for MySpan {
-  fn from(value: String) -> Self {
-    Self {
-      style: Style::default(),
-      content: value,
-    }
-  }
-}
-
-impl Into<Span<'_>> for &MySpan {
-  fn into(self) -> Span<'static> {
-    Span {
-      style: self.style,
-      content: self.content.clone().into(),
-    }
-  }
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
 pub struct CharSpan {
   style: Style,
   char: char,
@@ -327,19 +294,16 @@ impl MultiLineString {
   }
 
   pub fn insert(&mut self, index: usize, char: char) {
-    self
-      .body
-      .insert(self.body.byte_index(index), replace_dangerous_char(char));
+    let safe_char = replace_dangerous_char(char);
+    self.body.insert(self.body.byte_index(index), safe_char);
 
-    self
-      .usefull
-      .insert(self.body.byte_index(index), replace_dangerous_char(char).into());
+    self.usefull.insert(index, safe_char.into());
     self.update_md_formatting();
   }
 
   pub fn remove(&mut self, index: usize) {
     self.body.remove(self.body.byte_index(index));
-    self.usefull.remove(self.body.byte_index(index));
+    self.usefull.remove(index);
     self.update_md_formatting();
   }
 

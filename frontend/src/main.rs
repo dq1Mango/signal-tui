@@ -175,29 +175,52 @@ pub struct RatatuiBodyRange {
   style: fn(Style) -> Style,
 }
 
+fn nada(style: Style) -> Style {
+  style.bg(Color::Gray)
+}
+fn make_gray(style: Style) -> Style {
+  style.bg(Color::Gray)
+}
+const STYLES: [fn(Style) -> Style; 6] = [nada, Style::bold, Style::italic, make_gray, nada, nada];
+
+fn convert_to_signal(rat_ranges: Vec<RatatuiBodyRange>) -> Vec<BodyRange> {
+  let mut ranges = Vec::with_capacity(rat_ranges.len());
+
+  for range in &rat_ranges {
+    let mut signal_format = 0;
+
+    for (i, style) in STYLES.iter().enumerate() {
+      if *style == (range.style) {
+        signal_format = i
+      }
+    }
+
+    ranges.push(BodyRange {
+      start: Some(range.start),
+      length: Some(range.length),
+      associated_value: Some(AssociatedValue::Style(signal_format as i32)),
+    })
+  }
+
+  ranges
+}
+
 impl RatatuiBodyRange {
   fn try_from(value: &BodyRange) -> Option<Self> {
     // fn nothing<T>(_nada: T) {}
-    fn change_nothing(style: Style) -> Style {
-      style.bg(Color::Gray)
-    }
-
-    fn make_gray(style: Style) -> Style {
-      style.bg(Color::Gray)
-    }
 
     // let make_gray
 
-    let nada = change_nothing;
-    let styles = vec![nada, Style::bold, Style::italic, make_gray, nada, nada];
+    // let nada = change_nothing;
+    // let styles = vec![nada, Style::bold, Style::italic, make_gray, nada, nada];
 
     let start = value.start?;
     let length = value.length?;
     let style = match &value.associated_value {
       Some(AssociatedValue::Style(style_num)) => {
-        if *style_num >= 0 && *style_num < styles.len() as i32 {
+        if *style_num >= 0 && *style_num < STYLES.len() as i32 {
           Logger::log(format!("feeling stylish: {}", *style_num));
-          styles[*style_num as usize]
+          STYLES[*style_num as usize]
         } else {
           return None;
         }
@@ -209,11 +232,7 @@ impl RatatuiBodyRange {
       None => return None,
     };
 
-    Some(Self {
-      start,
-      length,
-      style,
-    })
+    Some(Self { start, length, style })
   }
 }
 
@@ -331,10 +350,7 @@ pub fn config_dir_path() -> Box<Path> {
 }
 
 pub fn default_db_path() -> String {
-  config_dir_path()
-    .join("signal-tui.db3")
-    .display()
-    .to_string()
+  config_dir_path().join("signal-tui.db3").display().to_string()
 }
 
 fn download_dir_path() -> Box<Path> {
@@ -1008,9 +1024,7 @@ impl Message {
         if x.all_read(num_members) {
           Span::styled(
             [check_icon, check_icon].concat(),
-            Style::default()
-              .fg(Color::Magenta)
-              .add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
           )
         } else if x.all_delivered(num_members) {
           Span::styled(
@@ -1162,14 +1176,7 @@ impl Chat {
     }
   }
 
-  fn render(
-    &mut self,
-    area: Rect,
-    buf: &mut Buffer,
-    settings: &Settings,
-    contacts: Contacts,
-    mode: Mode,
-  ) {
+  fn render(&mut self, area: Rect, buf: &mut Buffer, settings: &Settings, contacts: Contacts, mode: Mode) {
     let input_lines = self.text_input.body.rows(area.width - 3);
     // Logger::log("this is our input: ".to_string());
     // Logger::log(format_vec(self.text_input.body.as_lines(area.width - 2)));
@@ -1193,13 +1200,9 @@ impl Chat {
     ])
     .split(area);
 
-    self.text_input.render(
-      mode == Mode::Insert,
-      reply_message,
-      &contacts,
-      layout[1],
-      buf,
-    );
+    self
+      .text_input
+      .render(mode == Mode::Insert, reply_message, &contacts, layout[1], buf);
 
     // kind of a sketchy shadow here but the layout[1] is used like once
     let area = layout[0];
@@ -1496,9 +1499,7 @@ impl Chat {
   }
 
   fn delete_message(&mut self, timestamp: u64) {
-    let index = self
-      .index(timestamp)
-      .expect("could not find message to delete");
+    let index = self.index(timestamp).expect("could not find message to delete");
     self.messages.remove(index);
 
     if self.location.index >= index {
@@ -1546,7 +1547,8 @@ impl Chat {
   fn send(&mut self, spawner: &SignalSpawner) {
     Logger::log("sending a message".to_string());
     // slight optimization possible here
-    let data = self.text_input.body.body.clone();
+    let body = self.text_input.body.body.clone();
+    let body_ranges = self.text_input.body.body_ranges.clone();
 
     // let members = self.participants.members.clone();
 
@@ -1564,7 +1566,8 @@ impl Chat {
 
         spawner.spawn(Cmd::SendToThread {
           thread: self.thread.clone(),
-          message: data,
+          message: body,
+          body_ranges: convert_to_signal(body_ranges),
           quote: quote,
           timestamp: ts.timestamp_millis() as u64,
           attachment_filepath: Vec::new().into(),
@@ -1576,7 +1579,10 @@ impl Chat {
         // for DATA messages
 
         self.messages.push(Message {
-          body: MultiLineString::new(&self.text_input.body.body),
+          body: MultiLineString::new_with_ranges(
+            &self.text_input.body.body,
+            self.text_input.body.body_ranges.clone(),
+          ),
           // this now timestamp is a little sketchy cuz the server is the one who actually says when
           // what happened
           metadata: Metadata::new_mine(ts, self.display.num_members),
@@ -1607,7 +1613,7 @@ impl Chat {
 
         spawner.spawn(Cmd::ReactToThread {
           thread: self.thread.clone(),
-          reaction: data.clone(),
+          reaction: body.clone(),
           timestamp: Utc::now().timestamp_millis() as u64,
           target_timestamp: ts,
           author_uuid: uuid,
@@ -1617,19 +1623,20 @@ impl Chat {
           .find_message(ts)
           .expect("no way these come back to bite me")
           .upsert_reaction(Reaction {
-            emoji: data.chars().nth(0).unwrap(),
+            emoji: body.chars().nth(0).unwrap(),
             author: spawner.self_uuid,
           });
       }
       TextInputMode::Editing => {
+        // TODO: change formatting ranges too
         let target_message = self.find_message(self.message_options.timestamp).unwrap();
-        target_message.body.set_content(data.clone());
+        target_message.body.set_content(body.clone());
 
         let target_timestamp = target_message.ts();
 
         spawner.spawn(Cmd::EditMessage {
           thread: self.thread.clone(),
-          message: data,
+          message: body,
           timestamp: ts.timestamp_millis() as u64,
           target_timestamp: target_timestamp,
         });
@@ -1741,12 +1748,8 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
   let area = pad_with_border(color, area, buf);
 
-  let layout = Layout::horizontal([
-    Constraint::Length(7),
-    Constraint::Min(15),
-    Constraint::Length(6),
-  ])
-  .split(area);
+  let layout =
+    Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
 
   // let image = StatefulImage::default().resize(Resize::Crop(None));
   // let mut pfp = match &self.pfp {
@@ -1820,10 +1823,7 @@ fn render_qr(qr: QrCode, mut area: Rect, buf: &mut Buffer) {
           false => Color::White,
         }),
       )
-      .render(
-        one_by_two_area(area.x + 2 * x as u16, area.y + y as u16),
-        buf,
-      );
+      .render(one_by_two_area(area.x + 2 * x as u16, area.y + y as u16), buf);
       // (... paint qr.get_module(x, y) ...)
     }
   }
@@ -1893,9 +1893,7 @@ fn draw_linking_screen(state: &LinkState, frame: &mut Frame) {
 }
 
 fn center_div(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
-  let [area] = Layout::horizontal([horizontal])
-    .flex(Flex::Center)
-    .areas(area);
+  let [area] = Layout::horizontal([horizontal]).flex(Flex::Center).areas(area);
   let [area] = Layout::vertical([vertical]).flex(Flex::Center).areas(area);
   area
 }
@@ -2041,8 +2039,7 @@ async fn real_main() -> anyhow::Result<()> {
     }
 
     // there probably a better way to make the store linked but this only happens once so idc
-    config_store =
-      SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+    config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
   }
 
   // initialize all the important stuff
@@ -2053,10 +2050,7 @@ async fn real_main() -> anyhow::Result<()> {
   let mut model = Model::init();
   model.mode = Arc::clone(&mode);
   model.account.uuid = manager.registration_data().service_ids.aci;
-  Logger::log(format!(
-    "well isnt this convenient: {:#?}",
-    &model.account.uuid
-  ));
+  Logger::log(format!("well isnt this convenient: {:#?}", &model.account.uuid));
 
   let settings = &Settings::init();
 
@@ -2366,9 +2360,7 @@ fn view(model: &mut Model, frame: &mut Frame, stdout: &mut Stdout, settings: &Se
   )
   .split(area);
 
-  _ = Block::bordered()
-    .border_set(border::THICK)
-    .render(layout[0], buf);
+  _ = Block::bordered().border_set(border::THICK).render(layout[0], buf);
 
   let contact_height = 3 + 2;
 

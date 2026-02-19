@@ -4,7 +4,6 @@ use crate::Message;
 use crate::MultiLineString;
 use crate::model::CharSpan;
 use crate::model::MyLine;
-use crate::model::MySpan;
 use crate::model::split_this_is_dumb;
 
 // mod multi_line_string;
@@ -65,13 +64,7 @@ fn test_trimmed_lines() {
 
     let mut expected: Vec<MyLine> = vec![];
     for line in test.expected {
-      expected.push(
-        line
-          .chars()
-          .map(|x| x.into())
-          .collect::<Vec<CharSpan>>()
-          .into(),
-      )
+      expected.push(line.chars().map(|x| x.into()).collect::<Vec<CharSpan>>().into())
     }
     assert_eq!(&output, &expected);
   }
