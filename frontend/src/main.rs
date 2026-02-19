@@ -172,19 +172,24 @@ pub struct Reaction {
 pub struct RatatuiBodyRange {
   start: u32,
   length: u32,
-  style: Style,
+  style: fn(Style) -> Style,
 }
 
 impl RatatuiBodyRange {
   fn try_from(value: &BodyRange) -> Option<Self> {
-    let styles: Vec<Style> = vec![
-      Style::default(),
-      Style::default().bold(),
-      Style::default().italic(),
-      Style::default().bg(Color::Gray),
-      Style::default(),
-      Style::default(),
-    ];
+    // fn nothing<T>(_nada: T) {}
+    fn change_nothing(style: Style) -> Style {
+      style.bg(Color::Gray)
+    }
+
+    fn make_gray(style: Style) -> Style {
+      style.bg(Color::Gray)
+    }
+
+    // let make_gray
+
+    let nada = change_nothing;
+    let styles = vec![nada, Style::bold, Style::italic, make_gray, nada, nada];
 
     let start = value.start?;
     let length = value.length?;
@@ -600,8 +605,8 @@ impl TextInput {
 
     let (mut index, mut row) = (0, 0);
 
-    Logger::log(format!("looking for an index of: {}", self.cursor_index));
-    Logger::log(format!("the first row has length: {}", lines[0].len()));
+    // Logger::log(format!("looking for an index of: {}", self.cursor_index));
+    // Logger::log(format!("the first row has length: {}", lines[0].len()));
 
     while (index + lines[row].len() as u16) < self.cursor_index {
       index += lines[row].len() as u16;

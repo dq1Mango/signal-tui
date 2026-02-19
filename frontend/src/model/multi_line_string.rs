@@ -1,8 +1,8 @@
 use std::cmp::min;
 
-use crate::{MyStringUtils, RatatuiBodyRange};
+use crate::{MyStringUtils, RatatuiBodyRange, logger::Logger};
 use ratatui::{
-  style::Style,
+  style::{Style, Stylize},
   text::{Line, Span},
 };
 
@@ -222,13 +222,99 @@ impl MultiLineString {
       let mut i = 0;
       while i < range.length as usize {
         // POTENTIAL PANIC
-        output.usefull[i + range.start as usize].style = range.style;
+        let span = &mut output.usefull[i + range.start as usize];
+        span.style = (range.style)(span.style);
 
         i += 1
       }
     }
     output.body_ranges = ranges;
     output
+  }
+  pub fn is_pattern(&self, index: usize, pattern: &Vec<char>) -> bool {
+    // nice oob check
+    if index + pattern.len() > self.usefull.len() {
+      return false;
+    }
+
+    for (j, chr) in pattern.iter().enumerate() {
+      if self.usefull[index + j].char != *chr {
+        return false;
+      }
+    }
+    true
+  }
+  pub fn find_dyck_pattern(&self, pattern: &Vec<char>, start: usize) -> Option<(usize, usize)> {
+    let mut i = start;
+
+    while i < self.usefull.len() {
+      if self.is_pattern(i, pattern) {
+        // Logger::log("found first part of dyck");
+        i += pattern.len();
+        let start = i;
+
+        while i < self.usefull.len() {
+          if !self.is_pattern(i, pattern) {
+            break;
+          }
+          i += 1;
+        }
+
+        while i < self.usefull.len() {
+          if self.is_pattern(i, pattern) {
+            return Some((start, i));
+          }
+          i += 1;
+        }
+
+        return None;
+      }
+
+      i += 1;
+    }
+
+    None
+  }
+  pub fn md_formatting_ranges(&self) -> Vec<RatatuiBodyRange> {
+    let mut ranges = vec![];
+
+    let pattern = vec!['*'];
+    let mut i = 0;
+
+    while let Some(range) = self.find_dyck_pattern(&pattern, i) {
+      // Logger::log("found some fun formatting ranges");
+      i = range.1 + pattern.len();
+      ranges.push(RatatuiBodyRange {
+        start: range.0 as u32,
+        length: (range.1 - range.0) as u32,
+        style: Style::italic,
+      })
+    }
+
+    // if ranges.len() > 0 {
+    //   Logger::log("found some fun formatting ranges");
+    // }
+
+    ranges
+  }
+
+  pub fn apply_body_ranges(&mut self) {
+    for span in &mut self.usefull {
+      span.style = Style::default();
+    }
+
+    // let make_bold = Style::bold;
+
+    for range in &self.body_ranges {
+      for i in range.start..range.start + range.length {
+        self.usefull[i as usize].style = (range.style)(self.usefull[i as usize].style);
+      }
+    }
+  }
+
+  pub fn update_md_formatting(&mut self) {
+    self.body_ranges = self.md_formatting_ranges();
+    self.apply_body_ranges();
   }
 
   pub fn set_content(&mut self, string: String) {
@@ -238,6 +324,8 @@ impl MultiLineString {
     self.cached_lines = vec![];
     self.cached_width = 0;
     self.cached_length = 0;
+
+    self.update_md_formatting();
   }
 
   pub fn insert(&mut self, index: usize, char: char) {
@@ -249,11 +337,13 @@ impl MultiLineString {
       self.body.byte_index(index),
       replace_dangerous_char(char).into(),
     );
+    self.update_md_formatting();
   }
 
   pub fn remove(&mut self, index: usize) {
     self.body.remove(self.body.byte_index(index));
     self.usefull.remove(self.body.byte_index(index));
+    self.update_md_formatting();
   }
 
   // I hate handling utf-8
