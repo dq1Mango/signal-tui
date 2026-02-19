@@ -251,14 +251,13 @@ impl MultiLineString {
       if self.is_pattern(i, pattern) {
         // Logger::log("found first part of dyck");
         i += pattern.len();
-        let start = i;
 
-        while i < self.usefull.len() {
-          if !self.is_pattern(i, pattern) {
-            break;
-          }
-          i += 1;
+        if self.is_pattern(i, pattern) {
+          i += pattern.len();
+          continue;
         }
+
+        let start = i;
 
         while i < self.usefull.len() {
           if self.is_pattern(i, pattern) {
@@ -278,22 +277,21 @@ impl MultiLineString {
   pub fn md_formatting_ranges(&self) -> Vec<RatatuiBodyRange> {
     let mut ranges = vec![];
 
-    let pattern = vec!['*'];
-    let mut i = 0;
+    let formats: Vec<(Vec<char>, fn(Style) -> Style)> =
+      vec![(vec!['*'], Style::italic), (vec!['*', '*'], Style::bold)];
 
-    while let Some(range) = self.find_dyck_pattern(&pattern, i) {
-      // Logger::log("found some fun formatting ranges");
-      i = range.1 + pattern.len();
-      ranges.push(RatatuiBodyRange {
-        start: range.0 as u32,
-        length: (range.1 - range.0) as u32,
-        style: Style::italic,
-      })
+    for (pattern, style) in formats {
+      let mut i = 0;
+      while let Some(range) = self.find_dyck_pattern(&pattern, i) {
+        // Logger::log("found some fun formatting ranges");
+        i = range.1 + pattern.len();
+        ranges.push(RatatuiBodyRange {
+          start: range.0 as u32,
+          length: (range.1 - range.0) as u32,
+          style: style,
+        })
+      }
     }
-
-    // if ranges.len() > 0 {
-    //   Logger::log("found some fun formatting ranges");
-    // }
 
     ranges
   }
@@ -333,10 +331,9 @@ impl MultiLineString {
       .body
       .insert(self.body.byte_index(index), replace_dangerous_char(char));
 
-    self.usefull.insert(
-      self.body.byte_index(index),
-      replace_dangerous_char(char).into(),
-    );
+    self
+      .usefull
+      .insert(self.body.byte_index(index), replace_dangerous_char(char).into());
     self.update_md_formatting();
   }
 
