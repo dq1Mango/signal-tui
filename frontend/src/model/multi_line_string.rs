@@ -1,11 +1,10 @@
-use std::{cmp::min, collections::HashMap};
-
 use crate::{MyStringUtils, RatatuiBodyRange, logger::Logger};
 use presage::proto::BodyRange;
 use ratatui::{
   style::{Style, Stylize},
   text::{Line, Span},
 };
+use std::{cmp::min, mem::take};
 
 // will eventually need to make the "grapheme cluster"-span
 // TODO more like TODO-NT
@@ -170,8 +169,7 @@ fn parse_dangerous_chars(input: String) -> String {
 
 pub fn style_to_pattern(style: fn(Style) -> Style) -> Vec<char> {
   // surely this ends up in .DATA right?
-  let formats: Vec<(Vec<char>, fn(Style) -> Style)> =
-    vec![(vec!['*'], Style::italic), (vec!['*', '*'], Style::bold)];
+  let formats: Vec<(Vec<char>, fn(Style) -> Style)> = vec![(vec!['*'], Style::italic), (vec!['*', '*'], Style::bold)];
 
   for (pattern, func) in formats {
     if func == style {
@@ -221,17 +219,31 @@ impl MultiLineString {
         return false;
       }
     }
+
+    // !self.is_pattern(index + pattern.len(), pattern)
     true
   }
-  pub fn find_dyck_pattern(&self, pattern: &Vec<char>, start: usize) -> Option<(usize, usize)> {
+  pub fn is_isolated_pattern(&self, index: usize, pattern: &Vec<char>) -> bool {
+    let check_next = self.is_pattern(index, pattern) && !self.is_pattern(index + pattern.len(), pattern);
+    if pattern.len() > index {
+      check_next
+    } else {
+      check_next && !self.is_pattern(index - pattern.len(), pattern)
+    }
+  }
+  pub fn find_dyck_pattern(&self, pattern: &Vec<char>, start: usize, taken: &mut Vec<usize>) -> Option<(usize, usize)> {
     let mut i = start;
 
     while i < self.usefull.len() {
-      if self.is_pattern(i, pattern) {
+      if self.is_pattern(i, pattern) && !taken.contains(&i) {
         // Logger::log("found first part of dyck");
         i += pattern.len();
 
         if self.is_pattern(i, pattern) {
+          // Logger::log("aint it chief");
+          // Logger::log(format!("{:?}", pattern));
+          // Logger::log(format!("{}", i));
+
           i += pattern.len();
           continue;
         }
@@ -239,7 +251,8 @@ impl MultiLineString {
         let start = i;
 
         while i < self.usefull.len() {
-          if self.is_pattern(i, pattern) {
+          if self.is_pattern(i, pattern) && !taken.contains(&i) {
+            //&& !self.is_pattern(i + pattern.len(), pattern) {
             return Some((start, i));
           }
           i += 1;
@@ -255,20 +268,29 @@ impl MultiLineString {
   }
   pub fn md_formatting_ranges(&self) -> Vec<RatatuiBodyRange> {
     let mut ranges = vec![];
+    let mut taken_indicies = vec![];
 
-    let formats: Vec<(Vec<char>, fn(Style) -> Style)> =
-      vec![(vec!['*'], Style::italic), (vec!['*', '*'], Style::bold)];
+    let formats: Vec<(Vec<char>, fn(Style) -> Style)> = vec![(vec!['*', '*'], Style::bold), (vec!['*'], Style::italic)];
 
     for (pattern, style) in formats {
+      Logger::log(format!("{:?}", taken_indicies));
+      Logger::log("");
       let mut i = 0;
-      while let Some(range) = self.find_dyck_pattern(&pattern, i) {
+      while let Some(range) = self.find_dyck_pattern(&pattern, i, &mut taken_indicies) {
         // Logger::log("found some fun formatting ranges");
         i = range.1 + pattern.len();
+        let length = (range.1 - range.0) as u32;
+
+        for i in 0..pattern.len() as usize {
+          taken_indicies.push(range.0 - 1 - i);
+          taken_indicies.push(range.1 + i);
+        }
+
         ranges.push(RatatuiBodyRange {
           start: range.0 as u32,
-          length: (range.1 - range.0) as u32,
+          length: length,
           style: style,
-        })
+        });
       }
     }
 
