@@ -14,7 +14,7 @@ use futures::{StreamExt, future::FutureExt};
 use presage::libsignal_service::content::{Content, ContentBody};
 use presage::libsignal_service::prelude::ProfileKey;
 use presage::proto::receipt_message::Type;
-use presage::proto::{DataMessage, ReceiptMessage, SyncMessage};
+use presage::proto::{DataMessage, EditMessage, ReceiptMessage, SyncMessage};
 use presage::store::ContentExt;
 use presage::store::Thread;
 
@@ -183,8 +183,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     Action::Scroll(lines) => {
       let chat = model.current_chat();
       if chat.messages.len() > 0 {
-        chat.location.index = (chat.location.index as isize + lines)
-          .clamp(0, chat.messages.len() as isize - 1) as usize;
+        chat.location.index =
+          (chat.location.index as isize + lines).clamp(0, chat.messages.len() as isize - 1) as usize;
       }
 
       if chat.location.index == 0 {
@@ -199,8 +199,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     }
 
     Action::ScrollGroup(direction) => {
-      model.chat_index =
-        (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
+      model.chat_index = (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
       //.clamp(0, model.chats.len() as isize - 1) as usize
     }
 
@@ -304,11 +303,7 @@ pub fn download_current_message(model: &mut Model, spawner: &SignalSpawner) {
   }
 }
 
-pub fn handle_option(
-  model: &mut Model,
-  spawner: &SignalSpawner,
-  option: MessageOption,
-) -> Option<Action> {
+pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: MessageOption) -> Option<Action> {
   let chat = model.current_chat();
   let message = chat.find_message(chat.message_options.timestamp)?;
 
@@ -334,14 +329,7 @@ pub fn handle_option(
     MessageOption::Copy => {
       let result = execute!(
         std::io::stdout(),
-        CopyToClipboard::to_clipboard_from(
-          &model
-            .current_chat()
-            .selected_message()
-            .expect("kaboom")
-            .body
-            .body
-        )
+        CopyToClipboard::to_clipboard_from(&model.current_chat().selected_message().expect("kaboom").body.body)
       );
 
       if let Err(error) = result {
@@ -361,11 +349,7 @@ pub fn handle_option(
     MessageOption::Edit => {
       // kinda gotta find the message twice sometimes cuz "cant have more than one mutable borrow
       // yaaaaaaaaaayy..."
-      let body = chat
-        .find_message(chat.message_options.timestamp)?
-        .body
-        .body
-        .clone();
+      let body = chat.find_message(chat.message_options.timestamp)?.body.body.clone();
       chat.text_input.set_content(body);
 
       chat.text_input.mode = TextInputMode::Editing;
@@ -431,11 +415,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         })
       };
 
-      let quote = if let Some(Quote { id, .. }) = quote {
-        id
-      } else {
-        None
-      };
+      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
 
       // let reactions = if let Some(data_message::Reaction {
       //   emoji: Some(emoji), ..
@@ -467,10 +447,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       };
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!(
-          "Could not find a chat that matched the id: {:#?}",
-          thread
-        ));
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
         return None;
       };
 
@@ -541,11 +518,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       //   }
       // }
 
-      let quote = if let Some(Quote { id, .. }) = quote {
-        id
-      } else {
-        None
-      };
+      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
 
       // let reactions = if let Some(data_message::Reaction {
       //   emoji: Some(emoji), ..
@@ -569,10 +542,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       }
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!(
-          "Could not find a chat that matched the id: {:#?}",
-          thread
-        ));
+        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
         return None;
       };
 
@@ -594,9 +564,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         for time in times {
           if let Some(message) = chat.find_message(time) {
             if let Metadata::MyMessage(MyMessage {
-              read_by,
-              delivered_to,
-              ..
+              read_by, delivered_to, ..
             }) = &mut message.metadata
             {
               let receipt = Receipt {
@@ -661,10 +629,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         };
 
         let Some(chat) = model.find_chat(&thread) else {
-          Logger::log(format!(
-            "Could not find a chat that matched the id: {:#?}",
-            thread
-          ));
+          Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
           return None;
         };
 
@@ -672,6 +637,30 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       }
 
       // insert_message(model, data, thread, ts, mine)
+    }
+
+    ContentBody::EditMessage(EditMessage {
+      target_sent_timestamp,
+      data_message,
+    })
+    | ContentBody::SynchronizeMessage(SyncMessage {
+      sent:
+        Some(Sent {
+          edit_message: Some(EditMessage {
+            target_sent_timestamp,
+            data_message,
+          }),
+          ..
+        }),
+      ..
+    }) => {
+      let data_message = data_message?;
+      if let Some(chat) = model.find_chat(&thread) {
+        if let Some(message) = chat.find_message(target_sent_timestamp?) {
+          message.body.set_content(data_message.body?);
+          message.body.set_ranges(convert_to_ratatui(&data_message.body_ranges));
+        }
+      }
     }
     _ => {}
   }

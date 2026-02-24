@@ -208,7 +208,7 @@ impl MultiLineString {
     output.body_ranges = ranges;
     output
   }
-  pub fn is_pattern(&self, index: usize, pattern: &Vec<char>) -> bool {
+  fn is_pattern(&self, index: usize, pattern: &Vec<char>) -> bool {
     // nice oob check
     if index + pattern.len() > self.usefull.len() {
       return false;
@@ -223,15 +223,20 @@ impl MultiLineString {
     // !self.is_pattern(index + pattern.len(), pattern)
     true
   }
-  pub fn is_isolated_pattern(&self, index: usize, pattern: &Vec<char>) -> bool {
-    let check_next = self.is_pattern(index, pattern) && !self.is_pattern(index + pattern.len(), pattern);
-    if pattern.len() > index {
-      check_next
-    } else {
-      check_next && !self.is_pattern(index - pattern.len(), pattern)
-    }
-  }
-  pub fn find_dyck_pattern(&self, pattern: &Vec<char>, start: usize, taken: &mut Vec<usize>) -> Option<(usize, usize)> {
+  // fn is_isolated_pattern(&self, index: usize, pattern: &Vec<char>) -> bool {
+  //   let check_next = self.is_pattern(index, pattern) && !self.is_pattern(index + pattern.len(), pattern);
+  //   if pattern.len() > index {
+  //     check_next
+  //   } else {
+  //     check_next && !self.is_pattern(index - pattern.len(), pattern)
+  //   }
+  // }
+  pub fn find_dyck_pattern(
+    &self,
+    pattern: &Vec<char>,
+    start: usize,
+    taken: &mut Vec<usize>,
+  ) -> Option<(usize, usize)> {
     let mut i = start;
 
     while i < self.usefull.len() {
@@ -270,7 +275,8 @@ impl MultiLineString {
     let mut ranges = vec![];
     let mut taken_indicies = vec![];
 
-    let formats: Vec<(Vec<char>, fn(Style) -> Style)> = vec![(vec!['*', '*'], Style::bold), (vec!['*'], Style::italic)];
+    let formats: Vec<(Vec<char>, fn(Style) -> Style)> =
+      vec![(vec!['*', '*'], Style::bold), (vec!['*'], Style::italic)];
 
     for (pattern, style) in formats {
       Logger::log(format!("{:?}", taken_indicies));
@@ -380,6 +386,11 @@ impl MultiLineString {
     self.cached_length = 0;
 
     self.update_md_formatting();
+  }
+
+  pub fn set_ranges(&mut self, ranges: Vec<RatatuiBodyRange>) {
+    self.body_ranges = ranges;
+    self.apply_body_ranges();
   }
 
   pub fn insert(&mut self, index: usize, char: char) {

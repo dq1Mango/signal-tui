@@ -183,7 +183,7 @@ fn make_gray(style: Style) -> Style {
 }
 const STYLES: [fn(Style) -> Style; 6] = [nada, Style::bold, Style::italic, make_gray, nada, nada];
 
-fn convert_to_signal(rat_ranges: &Vec<RatatuiBodyRange>) -> Vec<BodyRange> {
+pub fn convert_to_signal(rat_ranges: &Vec<RatatuiBodyRange>) -> Vec<BodyRange> {
   let mut ranges = Vec::with_capacity(rat_ranges.len());
 
   for range in rat_ranges {
@@ -200,6 +200,18 @@ fn convert_to_signal(rat_ranges: &Vec<RatatuiBodyRange>) -> Vec<BodyRange> {
       length: Some(range.length),
       associated_value: Some(AssociatedValue::Style(signal_format as i32)),
     })
+  }
+
+  ranges
+}
+
+pub fn convert_to_ratatui(sig_ranges: &Vec<BodyRange>) -> Vec<RatatuiBodyRange> {
+  let mut ranges = Vec::with_capacity(sig_ranges.len());
+
+  for range in sig_ranges {
+    if let Some(rat_range) = RatatuiBodyRange::try_from(range) {
+      ranges.push(rat_range);
+    }
   }
 
   ranges
@@ -1524,6 +1536,7 @@ impl Chat {
     self.text_input.body.extract_formatted();
     let body = self.text_input.body.as_string();
     let body_ranges = self.text_input.body.body_ranges.clone();
+    let signal_ranges = convert_to_signal(&body_ranges);
 
     // let members = self.participants.members.clone();
 
@@ -1542,7 +1555,7 @@ impl Chat {
         spawner.spawn(Cmd::SendToThread {
           thread: self.thread.clone(),
           message: body.clone(),
-          body_ranges: convert_to_signal(&body_ranges),
+          body_ranges: signal_ranges,
           quote: quote,
           timestamp: ts.timestamp_millis() as u64,
           attachment_filepath: Vec::new().into(),
@@ -1603,12 +1616,14 @@ impl Chat {
         // TODO: change formatting ranges too
         let target_message = self.find_message(self.message_options.timestamp).unwrap();
         target_message.body.set_content(body.clone());
+        target_message.body.set_ranges(body_ranges);
 
         let target_timestamp = target_message.ts();
 
         spawner.spawn(Cmd::EditMessage {
           thread: self.thread.clone(),
           message: body,
+          body_ranges: signal_ranges,
           timestamp: ts.timestamp_millis() as u64,
           target_timestamp: target_timestamp,
         });
