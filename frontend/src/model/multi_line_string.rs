@@ -306,6 +306,12 @@ impl MultiLineString {
     while i < len_ranges {
       let range = &mut self.body_ranges[i];
       let patter_len = style_to_pattern(range.style).len() as u32;
+      Logger::log(format!("in this range: {:?}", &range));
+      Logger::log(format!("patter this long: {}", patter_len));
+
+      for _ in 0..patter_len {
+        self.usefull.remove((range.start + range.length) as usize);
+      }
       range.start -= patter_len;
 
       for _ in 0..patter_len {
