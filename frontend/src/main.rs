@@ -183,10 +183,10 @@ fn make_gray(style: Style) -> Style {
 }
 const STYLES: [fn(Style) -> Style; 6] = [nada, Style::bold, Style::italic, make_gray, nada, nada];
 
-fn convert_to_signal(rat_ranges: Vec<RatatuiBodyRange>) -> Vec<BodyRange> {
+fn convert_to_signal(rat_ranges: &Vec<RatatuiBodyRange>) -> Vec<BodyRange> {
   let mut ranges = Vec::with_capacity(rat_ranges.len());
 
-  for range in &rat_ranges {
+  for range in rat_ranges {
     let mut signal_format = 0;
 
     for (i, style) in STYLES.iter().enumerate() {
@@ -1081,7 +1081,7 @@ impl Message {
       Span::from(":"),
     ]));
 
-    lines.push(Line::from(self.body.body.shrink(width)));
+    lines.push(Line::from(self.body.as_string().shrink(width)));
     lines.push(Line::from("-"));
     // lines.push(Line::from("-".repeat(width)));
 
@@ -1547,7 +1547,9 @@ impl Chat {
   fn send(&mut self, spawner: &SignalSpawner) {
     Logger::log("sending a message".to_string());
     // slight optimization possible here
-    let body = self.text_input.body.body.clone();
+    //
+    self.text_input.body.extract_formatted();
+    let body = self.text_input.body.as_string();
     let body_ranges = self.text_input.body.body_ranges.clone();
 
     // let members = self.participants.members.clone();
@@ -1566,8 +1568,8 @@ impl Chat {
 
         spawner.spawn(Cmd::SendToThread {
           thread: self.thread.clone(),
-          message: body,
-          body_ranges: convert_to_signal(body_ranges),
+          message: body.clone(),
+          body_ranges: convert_to_signal(&body_ranges),
           quote: quote,
           timestamp: ts.timestamp_millis() as u64,
           attachment_filepath: Vec::new().into(),
@@ -1579,10 +1581,7 @@ impl Chat {
         // for DATA messages
 
         self.messages.push(Message {
-          body: MultiLineString::new_with_ranges(
-            &self.text_input.body.body,
-            self.text_input.body.body_ranges.clone(),
-          ),
+          body: MultiLineString::new_with_ranges(&body, body_ranges),
           // this now timestamp is a little sketchy cuz the server is the one who actually says when
           // what happened
           metadata: Metadata::new_mine(ts, self.display.num_members),

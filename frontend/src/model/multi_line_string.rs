@@ -1,11 +1,14 @@
-use std::cmp::min;
+use std::{cmp::min, collections::HashMap};
 
 use crate::{MyStringUtils, RatatuiBodyRange, logger::Logger};
+use presage::proto::BodyRange;
 use ratatui::{
   style::{Style, Stylize},
   text::{Line, Span},
 };
 
+// will eventually need to make the "grapheme cluster"-span
+// TODO more like TODO-NT
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct CharSpan {
   style: Style,
@@ -20,11 +23,6 @@ impl From<char> for CharSpan {
     }
   }
 }
-// impl From<String> for CharSpan {
-//   fn from(value: String) -> Self {
-//     value.chars().nth(0).unwrap().into()
-//   }
-// }
 
 impl Into<Span<'_>> for &CharSpan {
   fn into(self) -> Span<'static> {
@@ -170,6 +168,20 @@ fn parse_dangerous_chars(input: String) -> String {
   input.chars().map(|c| replace_dangerous_char(c)).collect()
 }
 
+pub fn style_to_pattern(style: fn(Style) -> Style) -> Vec<char> {
+  // surely this ends up in .DATA right?
+  let formats: Vec<(Vec<char>, fn(Style) -> Style)> =
+    vec![(vec!['*'], Style::italic), (vec!['*', '*'], Style::bold)];
+
+  for (pattern, func) in formats {
+    if func == style {
+      return pattern;
+    }
+  }
+
+  return vec![];
+}
+
 impl MultiLineString {
   pub fn new(str: &str) -> Self {
     Self {
@@ -280,6 +292,55 @@ impl MultiLineString {
   pub fn update_md_formatting(&mut self) {
     self.body_ranges = self.md_formatting_ranges();
     self.apply_body_ranges();
+  }
+
+  /// Does this add a doc comment,
+  /// also only call this one if u r done with the MultiLineString,
+  /// (it kind of nukes it)
+  pub fn extract_formatted(&mut self) {
+    // shoooouldnt need to update again
+    // self.update_md_formatting();
+    //
+    let len_ranges = self.body_ranges.len();
+    let mut i = 0;
+    while i < len_ranges {
+      let range = &mut self.body_ranges[i];
+      let patter_len = style_to_pattern(range.style).len() as u32;
+      range.start -= patter_len;
+
+      for _ in 0..patter_len {
+        self.usefull.remove(range.start as usize);
+      }
+
+      let start = range.start;
+      let length = range.length;
+
+      let mut j = 0;
+      while j < len_ranges {
+        if i == j {
+          j += 1;
+          continue;
+        }
+
+        let other_range = &mut self.body_ranges[j];
+
+        if other_range.start > start {
+          other_range.start -= patter_len;
+        } else if other_range.start + other_range.length > start {
+          other_range.length -= patter_len;
+        }
+
+        if other_range.start > start + length {
+          other_range.start -= patter_len;
+        } else if other_range.start + other_range.length > start + length {
+          other_range.length -= patter_len;
+        }
+
+        j += 1;
+      }
+
+      i += 1;
+    }
   }
 
   pub fn set_content(&mut self, string: String) {
@@ -425,6 +486,10 @@ impl MultiLineString {
     let last = fitted.len() - 1;
     fitted[last] = shrink_line(fitted[last].clone(), width as usize);
     fitted
+  }
+
+  pub fn as_string(&self) -> String {
+    self.usefull.clone().iter().map(|x| x.char).collect()
   }
 }
 
