@@ -199,7 +199,8 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
     }
 
     Action::ScrollGroup(direction) => {
-      model.chat_index = (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
+      model.chat_index =
+        (model.chat_index as isize + direction).rem_euclid(model.chats.len() as isize) as usize;
       //.clamp(0, model.chats.len() as isize - 1) as usize
     }
 
@@ -253,6 +254,7 @@ pub async fn update(model: &mut Model, msg: Action, spawner: &SignalSpawner) -> 
       }
       Received::Contacts => {
         // update our in memory cache of contacts
+        Logger::log("fresh new contacts for you");
         _ = update_contacts(model, spawner).await;
       }
       Received::QueueEmpty => {}
@@ -329,7 +331,9 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
     MessageOption::Copy => {
       let result = execute!(
         std::io::stdout(),
-        CopyToClipboard::to_clipboard_from(&model.current_chat().selected_message().expect("kaboom").body.body)
+        CopyToClipboard::to_clipboard_from(
+          &model.current_chat().selected_message().expect("kaboom").body.body
+        )
       );
 
       if let Err(error) = result {
@@ -349,7 +353,11 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
     MessageOption::Edit => {
       // kinda gotta find the message twice sometimes cuz "cant have more than one mutable borrow
       // yaaaaaaaaaayy..."
-      let body = chat.find_message(chat.message_options.timestamp)?.body.body.clone();
+      let body = chat
+        .find_message(chat.message_options.timestamp)?
+        .body
+        .body
+        .clone();
       chat.text_input.set_content(body);
 
       chat.text_input.mode = TextInputMode::Editing;
@@ -371,6 +379,7 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
 }
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
+  Logger::log("stared handling message");
   // Logger::log(format!("Heres the message: {:#?}", content.clone()));
   let cloned_tent = content.clone();
 
@@ -416,7 +425,11 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         })
       };
 
-      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
+      let quote = if let Some(Quote { id, .. }) = quote {
+        id
+      } else {
+        None
+      };
 
       // let reactions = if let Some(data_message::Reaction {
       //   emoji: Some(emoji), ..
@@ -448,7 +461,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       };
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+        Logger::log(format!(
+          "Could not find a chat that matched the id: {:#?}",
+          thread
+        ));
         return None;
       };
 
@@ -519,7 +535,11 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       //   }
       // }
 
-      let quote = if let Some(Quote { id, .. }) = quote { id } else { None };
+      let quote = if let Some(Quote { id, .. }) = quote {
+        id
+      } else {
+        None
+      };
 
       // let reactions = if let Some(data_message::Reaction {
       //   emoji: Some(emoji), ..
@@ -543,7 +563,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       }
 
       let Some(chat) = model.find_chat(&thread) else {
-        Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+        Logger::log(format!(
+          "Could not find a chat that matched the id: {:#?}",
+          thread
+        ));
         return None;
       };
 
@@ -565,7 +588,9 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         for time in times {
           if let Some(message) = chat.find_message(time) {
             if let Metadata::MyMessage(MyMessage {
-              read_by, delivered_to, ..
+              read_by,
+              delivered_to,
+              ..
             }) = &mut message.metadata
             {
               let receipt = Receipt {
@@ -630,7 +655,10 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         };
 
         let Some(chat) = model.find_chat(&thread) else {
-          Logger::log(format!("Could not find a chat that matched the id: {:#?}", thread));
+          Logger::log(format!(
+            "Could not find a chat that matched the id: {:#?}",
+            thread
+          ));
           return None;
         };
 
@@ -647,10 +675,11 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
     | ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          edit_message: Some(EditMessage {
-            target_sent_timestamp,
-            data_message,
-          }),
+          edit_message:
+            Some(EditMessage {
+              target_sent_timestamp,
+              data_message,
+            }),
           ..
         }),
       ..
@@ -666,12 +695,15 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
       if let Some(chat) = model.find_chat(&thread) {
         if let Some(message) = chat.find_message(target_sent_timestamp?) {
           message.body.set_content(data_message.body?);
-          message.body.set_ranges(convert_to_ratatui(&data_message.body_ranges));
+          message
+            .body
+            .set_ranges(convert_to_ratatui(&data_message.body_ranges));
         }
       }
     }
     _ => {}
   }
+  Logger::log("done handling message ...");
 
   None
 }
@@ -679,6 +711,7 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
 pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyhow::Result<()> {
   Logger::log("updating contacts".to_string());
   for contact in spawner.list_contacts().await? {
+    Logger::log("listed contacts");
     // Logger::log(format!("{}", contact.inbox_position));
     if model.contacts.contains_key(&contact.uuid) {
       Logger::log("already_gyatt key".to_string());
@@ -687,11 +720,12 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
       let profile_key = match contact.profile_key.clone().try_into() {
         Ok(bytes) => Some(ProfileKey::create(bytes)),
         Err(_) => {
-          // Logger::log(format!("died on this dude: {:#?}", contact));
+          Logger::log(format!("died on this dude: {:#?}", contact));
           None
         }
       };
 
+      Logger::log("trying to get profile...");
       let profile = match spawner.retrieve_profile(contact.uuid, profile_key).await {
         Ok(x) => x,
         Err(_) => continue,
@@ -701,6 +735,7 @@ pub async fn update_contacts(model: &mut Model, spawner: &SignalSpawner) -> anyh
         Logger::log("didnt get off so easy".to_string());
         return Ok(());
       };
+      Logger::log("i will be so mad if this is the problem");
 
       contacts.insert(contact.uuid, profile.clone());
 

@@ -88,6 +88,7 @@ use crate::logger::Logger;
 //     subcommand: Cmd,
 // }
 
+#[derive(Debug)]
 pub enum Cmd {
   // #[clap(about = "Register using a phone number")]
   Register {
@@ -462,7 +463,11 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     return;
   };
 
-  async fn format_data_message(thread: &Thread, data_message: &DataMessage, manager: &MyManager) -> Option<String> {
+  async fn format_data_message(
+    thread: &Thread,
+    data_message: &DataMessage,
+    manager: &MyManager,
+  ) -> Option<String> {
     match data_message {
       DataMessage {
         quote: Some(Quote {
@@ -527,7 +532,10 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 
   if let Some(msg) = match &content.body {
-    ContentBody::NullMessage(_) => Some(Msg::Received(&thread, "Null message (for example deleted)".to_string())),
+    ContentBody::NullMessage(_) => Some(Msg::Received(
+      &thread,
+      "Null message (for example deleted)".to_string(),
+    )),
     ContentBody::DataMessage(data_message) => format_data_message(&thread, data_message, manager)
       .await
       .map(|body| Msg::Received(&thread, body)),
@@ -550,10 +558,11 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          edit_message: Some(EditMessage {
-            data_message: Some(data_message),
-            ..
-          }),
+          edit_message:
+            Some(EditMessage {
+              data_message: Some(data_message),
+              ..
+            }),
           ..
         }),
       ..
@@ -600,7 +609,12 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     println!("{prefix} / {body}");
 
     if notifications {
-      if let Err(error) = Notification::new().summary(&prefix).body(&body).icon("presage").show() {
+      if let Err(error) = Notification::new()
+        .summary(&prefix)
+        .body(&body)
+        .icon("presage")
+        .show()
+      {
         error!(%error, "failed to display desktop notification");
       }
     }
@@ -916,7 +930,14 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, Recipient::Group(master_key), timestamp, data_message, None).await?;
+      send(
+        manager,
+        Recipient::Group(master_key),
+        timestamp,
+        data_message,
+        None,
+      )
+      .await?;
     }
     Cmd::SendToThread {
       message,
@@ -945,7 +966,14 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, recipient_from_thread(thread), timestamp, data_message, quote).await?;
+      send(
+        manager,
+        recipient_from_thread(thread),
+        timestamp,
+        data_message,
+        quote,
+      )
+      .await?;
     }
 
     Cmd::EditMessage {
@@ -1021,7 +1049,14 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(manager, recipient_from_thread(thread), timestamp, data_message, None).await?;
+      send(
+        manager,
+        recipient_from_thread(thread),
+        timestamp,
+        data_message,
+        None,
+      )
+      .await?;
     }
     Cmd::DeleteMessage {
       thread,
@@ -1057,7 +1092,14 @@ pub async fn run(
         ));
       }
 
-      send(manager, recipient_from_thread(thread), timestamp, delete_message, None).await?;
+      send(
+        manager,
+        recipient_from_thread(thread),
+        timestamp,
+        delete_message,
+        None,
+      )
+      .await?;
 
       Logger::log("successfully sent the delete message");
     }

@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 // use tokio::task::LocalSet;
 use tokio::sync::oneshot;
 use tokio::task::spawn_local;
+use tokio::time::{Duration, sleep};
 
 use crate::Profile;
 use crate::ProfileKey;
@@ -119,13 +120,29 @@ impl SignalSpawner {
 
     // let (message_tx, mut message_rx) = mpsc::unbounded_channel();
 
+    let (beat, mut heart) = mpsc::unbounded_channel();
+
+    spawn_local(async move {
+      let mut count = 0;
+      loop {
+        match beat.send(count) {
+          Ok(_) => {}
+          Err(err) => Logger::log(format!("aint no way: {:?}", err)),
+        }
+        count += 1;
+        sleep(Duration::from_secs(1)).await;
+      }
+    });
+
     spawn_local(async move {
       // initialize message stream
       let messages = manager
         .receive_messages()
         .await
         .expect("failed to initialize messages stream");
+
       pin_mut!(messages);
+      Logger::log("successfully initialize message stream!");
 
       // handle messages in a different "thread" to convert stream to channel
       // spawn_local(async move {
@@ -144,12 +161,17 @@ impl SignalSpawner {
       // should enable some gracefull shutdown
       while !output.is_closed() && !recv.is_closed() {
         // which we can only wait and see if this was a bad choice
-
+        Logger::log("trying to select one\n");
         select! {
-          Some(contacts_output) = contact_requests.recv() => {
-          let contacts = get_contacts(&manager).await;
+          Some(pulse) = heart.recv() => {
+            Logger::log(format!("buhm-buhm: {}", pulse))
+          }
 
-          _ = contacts_output.send(contacts);
+          Some(contacts_output) = contact_requests.recv() => {
+            Logger::log("got ur request little guy");
+            let contacts = get_contacts(&manager).await;
+
+            _ = contacts_output.send(contacts);
           }
 
           Some(groups_output) = group_requests.recv() => {
@@ -160,10 +182,13 @@ impl SignalSpawner {
           Some(profile_request) = profile_requests.recv() =>
           {
             let ProfileRequest {
-            output,
-            uuid,
-            profile_key,
-          } = profile_request;
+              output,
+              uuid,
+              profile_key,
+            } = profile_request;
+
+            Logger::log("someone wants profile");
+
             _ = output.send(retrieve_profile(&mut manager, uuid, profile_key).await);
           }
 
@@ -192,7 +217,9 @@ impl SignalSpawner {
           }
 
           Some(task) = recv.recv() => {
+            Logger::log(format!("gyatt a task: {:#?}", &task));
             _ = run(&mut manager, task, output.clone()).await;
+            Logger::log("finished task");
             // if counter > max_commands_in_a_row {
             //   break;
             // }
@@ -249,16 +276,15 @@ impl SignalSpawner {
   // }
 
   pub fn spawn(&self, task: Cmd) {
-    self
-      .send
-      .send(task)
-      .expect("Thread with LocalSet has shut down.");
+    self.send.send(task).expect("Thread with LocalSet has shut down.");
   }
 
   pub async fn list_contacts(&self) -> Result<Vec<Contact>, Error<SqliteStoreError>> {
     let (tx, rx) = oneshot::channel();
 
-    _ = self.contact_requests.send(tx);
+    if let Err(err) = self.contact_requests.send(tx) {
+      Logger::log(format!("error requesting contacts: {:#?}", err));
+    };
 
     return rx.await.expect("kaboom");
   }
@@ -276,7 +302,6 @@ impl SignalSpawner {
       profile_key,
     });
 
-    Logger::log("awaiting...");
     return rx.await.expect("kaboom");
   }
 

@@ -121,7 +121,7 @@ impl SqliteStore {
   /// The details can be found in this comment: <https://github.com/davidmartos96/sqflite_sqlcipher/issues/20#issuecomment-634167760>.
   ///
   /// This assumes that the passphrase is escaped (i.e. all `'` are already replaced by `''`).
-  async fn open_migrate_to_encrypted(
+  pub async fn open_migrate_to_encrypted(
     url: &str,
     passphrase: &str,
     trust_new_identities: OnNewIdentity,
@@ -193,7 +193,9 @@ impl Store for SqliteStore {
 impl StateStore for SqliteStore {
   type StateStoreError = SqliteStoreError;
 
-  async fn load_registration_data(&self) -> Result<Option<presage::manager::RegistrationData>, Self::StateStoreError> {
+  async fn load_registration_data(
+    &self,
+  ) -> Result<Option<presage::manager::RegistrationData>, Self::StateStoreError> {
     query_scalar!("SELECT value FROM kv WHERE key = 'registration'")
       .fetch_optional(&self.db)
       .await?
