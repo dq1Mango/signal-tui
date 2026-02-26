@@ -372,6 +372,7 @@ pub fn handle_option(model: &mut Model, spawner: &SignalSpawner, option: Message
 
 fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
   // Logger::log(format!("Heres the message: {:#?}", content.clone()));
+  let cloned_tent = content.clone();
 
   let ts = content.timestamp();
   let timestamp = DateTime::from_timestamp_millis(ts as i64).expect("this happens too often");
@@ -654,7 +655,14 @@ fn handle_message(model: &mut Model, content: Content) -> Option<Action> {
         }),
       ..
     }) => {
+      Logger::log(format!("lets see hwo the pros do it: {:#?}", cloned_tent));
+
       let data_message = data_message?;
+      Logger::log(format!(
+        "heres an edit message: {}, {:?}",
+        target_sent_timestamp.unwrap(),
+        data_message
+      ));
       if let Some(chat) = model.find_chat(&thread) {
         if let Some(message) = chat.find_message(target_sent_timestamp?) {
           message.body.set_content(data_message.body?);
