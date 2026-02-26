@@ -241,6 +241,10 @@ impl RatatuiBodyRange {
         Logger::log(format!("we mentioned an ACI: {:?}", x));
         return None;
       }
+      Some(AssociatedValue::MentionAciBinary(x)) => {
+        Logger::log(format!("we mentioned an ACI Binary: {:?}", x));
+        return None;
+      }
       None => return None,
     };
 
@@ -1183,7 +1187,8 @@ impl Chat {
       None
     };
 
-    let layout = Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
+    let layout =
+      Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
 
     self
       .text_input

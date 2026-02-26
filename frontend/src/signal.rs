@@ -125,7 +125,7 @@ pub enum Cmd {
   // #[clap(about = "Unlink device by device id")]
   UnlinkDevice {
     // #[clap(long, short = 'd', help = "Device id")]
-    device_id: i64,
+    device_id: u32,
   },
   // #[clap(about = "List all linked devices")]
   ListDevices,
@@ -864,7 +864,7 @@ pub async fn run(
     }
     Cmd::ListDevices => {
       let devices = manager.devices().await?;
-      let current_device_id: u8 = manager.device_id().into();
+      let current_device_id = manager.device_id();
 
       for device in devices {
         let device_name = device.name.unwrap_or_else(|| "(no device name)".to_string());
@@ -876,7 +876,7 @@ pub async fn run(
 
         println!(
           "- Device {} {}\n  Name: {}\n  Created: {}\n  Last seen: {}",
-          device.id, current_marker, device_name, device.created, device.last_seen,
+          device.id, current_marker, device_name, device.created_at, device.last_seen,
         );
       }
     }
@@ -988,10 +988,10 @@ pub async fn run(
       target_timestamp,
       author_uuid,
     } => {
-      let uuid: String = if let Some(uuid) = author_uuid {
-        uuid.into()
+      let uuid: Uuid = if let Some(uuid) = author_uuid {
+        uuid
       } else {
-        manager.registration_data().service_ids.aci.into()
+        manager.registration_data().service_ids.aci
       };
 
       let group_v2 = match &thread {
@@ -1008,7 +1008,14 @@ pub async fn run(
           emoji: Some(reaction),
           remove: Some(false),
           target_sent_timestamp: Some(target_timestamp),
-          target_author_aci: Some(uuid),
+          target_author_aci: Some(uuid.into()),
+          target_author_aci_binary: Some(uuid.into()),
+          // target_author_aci_binary: Some(
+          //   uuid
+          //     .as_deref()
+          //     .and_then(Aci::parse_from_service_id_string)
+          //     .map(|aci| aci.service_id_binary()),
+          // ),
         }),
         group_v2,
         ..Default::default()

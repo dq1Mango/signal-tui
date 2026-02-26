@@ -4,5 +4,5 @@
 #
 # also if u r on windows try wsl and good luck :)
 
-cargo install sqlx-cli --no-default-features --features sqlite,openssl-vendored
+cargo install sqlx-cli --no-default-features --features sqlite
 cargo sqlx prepare --workspace --database-url "sqlite://database/test.db"

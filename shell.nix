@@ -5,8 +5,9 @@ let
   overrides = (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml));
   libPath = with pkgs;
     lib.makeLibraryPath [
-      openssl.dev
       # load external libraries that you need in your rust project here
+      openssl.dev
+      # openssl
     ];
 in pkgs.mkShell rec {
   buildInputs = with pkgs; [
@@ -25,15 +26,16 @@ in pkgs.mkShell rec {
   shellHook = ''
     export PATH=$PATH:''${CARGO_HOME:-~/.cargo}/bin
     export PATH=$PATH:''${RUSTUP_HOME:-~/.rustup}/toolchains/$RUSTC_VERSION-x86_64-unknown-linux-gnu/bin/
-    export RUSTFLAGS="--cfg tokio_unstable"
+    export RUSTFLAGS="''${RUSTFLAGS} --cfg tokio_unstable"
   '';
   # Add precompiled library to rustc search path
   RUSTFLAGS = (builtins.map (a: "-L ${a}/lib") [
     # add libraries here (e.g. pkgs.libvmi)
+    pkgs.openssl.out
   ]);
-  LD_LIBRARY_PATH = libPath;
+  # LD_LIBRARY_PATH = libPath;
 
-  OPENSSL_DIR = libPath;
+  OPENSSL_DIR = "${pkgs.openssl.dev}";
   # Add glibc, clang, glib, and other headers to bindgen search path
   BINDGEN_EXTRA_CLANG_ARGS =
     # Includes normal include path

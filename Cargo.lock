@@ -4022,6 +4022,7 @@ dependencies = [
  "image",
  "mime_guess",
  "notify-rust",
+ "presage",
  "presage-store-sqlite",
  "qrcodegen",
  "ratatui",
