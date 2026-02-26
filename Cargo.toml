@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["frontend", "database"]
+members = ["frontend", "database", "presage"]
 
 [patch.crates-io]
 # goofy patch i forget why is needed (ask presage)

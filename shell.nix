@@ -5,6 +5,7 @@ let
   overrides = (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml));
   libPath = with pkgs;
     lib.makeLibraryPath [
+      openssl.dev
       # load external libraries that you need in your rust project here
     ];
 in pkgs.mkShell rec {
@@ -31,6 +32,8 @@ in pkgs.mkShell rec {
     # add libraries here (e.g. pkgs.libvmi)
   ]);
   LD_LIBRARY_PATH = libPath;
+
+  OPENSSL_DIR = libPath;
   # Add glibc, clang, glib, and other headers to bindgen search path
   BINDGEN_EXTRA_CLANG_ARGS =
     # Includes normal include path
