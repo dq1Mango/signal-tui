@@ -10,29 +10,31 @@ use tracing::error;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SqliteStoreError {
-    #[error(transparent)]
-    Db(#[from] sqlx::Error),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Migrate(#[from] sqlx::migrate::MigrateError),
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-    #[error(transparent)]
-    Uuid(#[from] uuid::Error),
-    #[error(transparent)]
-    PhoneNumber(#[from] phonenumber::ParseError),
-    #[error("conversation error")]
-    InvalidFormat,
-    #[error(transparent)]
-    Protocol(#[from] SignalProtocolError),
-    #[error("invalid device ID: {0}")]
-    InvalidDeviceId(#[from] InvalidDeviceId),
+  #[error(transparent)]
+  Db(#[from] sqlx::Error),
+  #[error(transparent)]
+  Io(#[from] std::io::Error),
+  #[error(transparent)]
+  Migrate(#[from] sqlx::migrate::MigrateError),
+  #[error(transparent)]
+  Json(#[from] serde_json::Error),
+  #[error(transparent)]
+  Uuid(#[from] uuid::Error),
+  #[error(transparent)]
+  PhoneNumber(#[from] phonenumber::ParseError),
+  #[error("conversation error")]
+  InvalidFormat,
+  #[error(transparent)]
+  Protocol(#[from] SignalProtocolError),
+  #[error("invalid device ID: {0}")]
+  InvalidDeviceId(#[from] InvalidDeviceId),
 }
 
 impl StoreError for SqliteStoreError {}
 
-impl From<SqliteStoreError> for presage::libsignal_service::protocol::SignalProtocolError {
+impl From<SqliteStoreError>
+  for presage::libsignal_service::protocol::SignalProtocolError
+{
   fn from(error: SqliteStoreError) -> Self {
     error!(%error, "presage sqlite store error");
     Self::InvalidState("presage sqlite store error", error.to_string())
@@ -45,12 +47,14 @@ pub(crate) trait SqlxErrorExt<T> {
 
 impl<T> SqlxErrorExt<T> for Result<T, sqlx::Error> {
   fn into_protocol_error(self) -> Result<T, SignalProtocolError> {
-    self.map_err(|error| SignalProtocolError::InvalidState("sqlite", error.to_string()))
+    self.map_err(|error| {
+      SignalProtocolError::InvalidState("sqlite", error.to_string())
+    })
   }
 }
 
-impl From<std::io::Error> for SqliteStoreError {
-  fn from(value: std::io::Error) -> Self {
-    SqliteStoreError::Migrate(sqlx::migrate::MigrateError::ExecuteMigration(sqlx::Error::Io(value), 1))
-  }
-}
+// impl From<std::io::Error> for SqliteStoreError {
+//   fn from(value: std::io::Error) -> Self {
+//     SqliteStoreError::Migrate(sqlx::migrate::MigrateError::ExecuteMigration(sqlx::Error::Io(value), 1))
+//   }
+// }

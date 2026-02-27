@@ -1,5 +1,3 @@
-#![warn(clippy::large_futures)]
-
 mod errors;
 pub mod manager;
 pub mod model;

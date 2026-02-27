@@ -159,12 +159,19 @@ impl<S: Store> Manager<S, Linking> {
                     &registration_data.service_ids
                 );
 
-                let manager = Manager {
+                let mut manager = Manager {
                     store: store.clone(),
                     state: Arc::new(Registered::with_data(registration_data)),
                 };
 
-                Ok(manager)
+                // Register pre-keys with the server. If this fails, this can lead to issues
+                // receiving, in that case clear the registration and propagate the error.
+                if let Err(e) = manager.register_pre_keys().await {
+                    store.clear_registration().await?;
+                    Err(e)
+                } else {
+                    Ok(manager)
+                }
             }
             Err(e) => {
                 store.clear_registration().await?;

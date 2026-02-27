@@ -241,10 +241,10 @@ impl RatatuiBodyRange {
         Logger::log(format!("we mentioned an ACI: {:?}", x));
         return None;
       }
-      Some(AssociatedValue::MentionAciBinary(x)) => {
-        Logger::log(format!("we mentioned an ACI Binary: {:?}", x));
-        return None;
-      }
+      // Some(AssociatedValue::MentionAciBinary(x)) => {
+      //   Logger::log(format!("we mentioned an ACI Binary: {:?}", x));
+      //   return None;
+      // }
       None => return None,
     };
 
@@ -359,10 +359,7 @@ struct Account {
 }
 
 pub fn config_dir_path() -> Box<Path> {
-  ProjectDirs::from("", "", "signal-tui")
-    .unwrap()
-    .config_dir()
-    .into()
+  ProjectDirs::from("", "", "signal-tui").unwrap().config_dir().into()
 }
 
 pub fn default_db_path() -> String {
@@ -580,14 +577,7 @@ impl Model {
 }
 
 impl TextInput {
-  fn render(
-    &mut self,
-    active: bool,
-    message: Option<&Message>,
-    contacts: &Contacts,
-    area: Rect,
-    buf: &mut Buffer,
-  ) {
+  fn render(&mut self, active: bool, message: Option<&Message>, contacts: &Contacts, area: Rect, buf: &mut Buffer) {
     let color = if active { Color::Magenta } else { Color::Reset };
 
     let mut block = Block::bordered()
@@ -767,14 +757,7 @@ impl MessageOptions {
       Metadata::NotMyMessage(_) => {
         vec!["  Reply", "  React", "  Copy", "  Info"]
       }
-      Metadata::MyMessage(_) => vec![
-        "  Reply",
-        "  React",
-        "  Edit",
-        "  Copy",
-        "  Info",
-        "  Delete",
-      ],
+      Metadata::MyMessage(_) => vec!["  Reply", "  React", "  Edit", "  Copy", "  Info", "  Delete"],
       Metadata::InfoMessage(_) => vec!["shouldnt", "see", "this"],
     };
     let options: Vec<Vec<char>> = options.iter().map(|s| s.chars().collect()).collect();
@@ -795,10 +778,7 @@ impl MessageOptions {
       //   Span::from(option[0].to_string()).style(Style::default().bold()),
       //   Span::from((&option[1..]).iter().collect::<String>()),
       // ]);
-      let mut line = Line::from(full_line(
-        option.into_iter().collect::<String>(),
-        fixed_width as usize,
-      ));
+      let mut line = Line::from(full_line(option.into_iter().collect::<String>(), fixed_width as usize));
 
       if index == self.index {
         line = line.style(Style::default().bg(Color::Magenta).fg(Color::Black));
@@ -956,10 +936,7 @@ impl Message {
       lines.push(Line::from("Attachments:"));
       for attache in &self.attachments {
         lines.push(Line::from(
-          attache
-            .content_type
-            .clone()
-            .unwrap_or("no content type".to_string()),
+          attache.content_type.clone().unwrap_or("no content type".to_string()),
         ))
         // lines.push("attachment here!".into())
       }
@@ -1046,10 +1023,7 @@ impl Message {
             Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
           )
         } else if x.all_delivered(num_members) {
-          Span::styled(
-            [check_icon, check_icon].concat(),
-            Style::default().fg(Color::Gray),
-          )
+          Span::styled([check_icon, check_icon].concat(), Style::default().fg(Color::Gray))
         } else if x.sent() {
           Span::styled(check_icon, Style::default().fg(Color::Gray))
         } else {
@@ -1213,11 +1187,7 @@ impl Chat {
       None
     };
 
-    let layout = Layout::vertical([
-      Constraint::Min(6),
-      Constraint::Length(input_lines + reply_lines + 2),
-    ])
-    .split(area);
+    let layout = Layout::vertical([Constraint::Min(6), Constraint::Length(input_lines + reply_lines + 2)]).split(area);
 
     self
       .text_input
@@ -1769,8 +1739,7 @@ fn render_group(chat: &mut Chat, active: bool, hovered: bool, area: Rect, buf: &
 
   let area = pad_with_border(color, area, buf);
 
-  let layout =
-    Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
+  let layout = Layout::horizontal([Constraint::Length(7), Constraint::Min(15), Constraint::Length(6)]).split(area);
 
   // let image = StatefulImage::default().resize(Resize::Crop(None));
   // let mut pfp = match &self.pfp {
@@ -1945,8 +1914,7 @@ fn draw_loading_sreen(state: &LoadState, frame: &mut Frame) {
   // these should only happen like immediately on start up
   if let Some(raw_duration) = state.raw_duration {
     if let Some(latest_timestamp) = state.latest_timestamp {
-      let formatted_duration =
-        format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
+      let formatted_duration = format_duration_fancy(&DateTime::from_timestamp_millis(latest_timestamp as i64).unwrap());
 
       let partial_duration = Utc::now().timestamp_millis() as u64 - latest_timestamp;
 
@@ -1998,8 +1966,7 @@ async fn real_main() -> anyhow::Result<()> {
 
   Logger::log(&db_path);
   // let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
-  let mut config_store =
-    SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+  let mut config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
 
   // tokio::spawn(run(
   //   Cmd::LinkDevice {
@@ -2060,8 +2027,7 @@ async fn real_main() -> anyhow::Result<()> {
     }
 
     // there probably a better way to make the store linked but this only happens once so idc
-    config_store =
-      SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
+    config_store = SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
   }
 
   // initialize all the important stuff
@@ -2108,8 +2074,7 @@ async fn real_main() -> anyhow::Result<()> {
           Received::Content(content) => {
             match loading_model.raw_duration {
               None => {
-                loading_model.raw_duration =
-                  Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
+                loading_model.raw_duration = Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
               }
               _ => {}
             }
@@ -2118,12 +2083,7 @@ async fn real_main() -> anyhow::Result<()> {
           }
         }
 
-        update(
-          &mut model,
-          msg.expect("the laws of physics have collapsed"),
-          &spawner,
-        )
-        .await;
+        update(&mut model, msg.expect("the laws of physics have collapsed"), &spawner).await;
       }
 
       Some(Action::Quit) => {
@@ -2325,8 +2285,7 @@ fn draw_help_popup(area: Rect, buf: &mut Buffer) {
   ];
 
   for binding in keybindings {
-    let left_over_wdith =
-      width as usize - binding.0.chars().count() - binding.1.chars().count() - (padding * 2);
+    let left_over_wdith = width as usize - binding.0.chars().count() - binding.1.chars().count() - (padding * 2);
 
     help_text_lines.push(
       vec![

@@ -19,6 +19,7 @@ use presage::Error;
 use presage::libsignal_service::configuration::SignalServers;
 use presage::libsignal_service::content::Reaction;
 use presage::libsignal_service::pre_keys::PreKeysStore;
+use presage::libsignal_service::prelude::DeviceId;
 use presage::libsignal_service::prelude::ProfileKey;
 use presage::libsignal_service::prelude::Uuid;
 use presage::libsignal_service::prelude::phonenumber::PhoneNumber;
@@ -463,11 +464,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     return;
   };
 
-  async fn format_data_message(
-    thread: &Thread,
-    data_message: &DataMessage,
-    manager: &MyManager,
-  ) -> Option<String> {
+  async fn format_data_message(thread: &Thread, data_message: &DataMessage, manager: &MyManager) -> Option<String> {
     match data_message {
       DataMessage {
         quote: Some(Quote {
@@ -532,10 +529,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
   }
 
   if let Some(msg) = match &content.body {
-    ContentBody::NullMessage(_) => Some(Msg::Received(
-      &thread,
-      "Null message (for example deleted)".to_string(),
-    )),
+    ContentBody::NullMessage(_) => Some(Msg::Received(&thread, "Null message (for example deleted)".to_string())),
     ContentBody::DataMessage(data_message) => format_data_message(&thread, data_message, manager)
       .await
       .map(|body| Msg::Received(&thread, body)),
@@ -558,11 +552,10 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     ContentBody::SynchronizeMessage(SyncMessage {
       sent:
         Some(Sent {
-          edit_message:
-            Some(EditMessage {
-              data_message: Some(data_message),
-              ..
-            }),
+          edit_message: Some(EditMessage {
+            data_message: Some(data_message),
+            ..
+          }),
           ..
         }),
       ..
@@ -609,12 +602,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     println!("{prefix} / {body}");
 
     if notifications {
-      if let Err(error) = Notification::new()
-        .summary(&prefix)
-        .body(&body)
-        .icon("presage")
-        .show()
-      {
+      if let Err(error) = Notification::new().summary(&prefix).body(&body).icon("presage").show() {
         error!(%error, "failed to display desktop notification");
       }
     }
@@ -830,11 +818,7 @@ pub async fn retrieve_profile(
 use crate::update::Action;
 use crate::update::LinkingAction;
 
-pub async fn run(
-  manager: &mut MyManager,
-  subcommand: Cmd,
-  output: mpsc::UnboundedSender<Action>,
-) -> anyhow::Result<()> {
+pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::UnboundedSender<Action>) -> anyhow::Result<()> {
   match subcommand {
     Cmd::Register {
       servers,
@@ -873,7 +857,7 @@ pub async fn run(
       println!("Added new secondary device");
     }
     Cmd::UnlinkDevice { device_id } => {
-      manager.unlink_secondary(device_id).await?;
+      manager.unlink_secondary(device_id.into()).await?;
       println!("Unlinked device with id: {}", device_id);
     }
     Cmd::ListDevices => {
@@ -882,7 +866,8 @@ pub async fn run(
 
       for device in devices {
         let device_name = device.name.unwrap_or_else(|| "(no device name)".to_string());
-        let current_marker = if device.id == current_device_id {
+        // TODO: look at this
+        let current_marker = if DeviceId::new(device.id).unwrap() == current_device_id {
           "(this device)"
         } else {
           ""
@@ -890,7 +875,12 @@ pub async fn run(
 
         println!(
           "- Device {} {}\n  Name: {}\n  Created: {}\n  Last seen: {}",
-          device.id, current_marker, device_name, device.created_at, device.last_seen,
+          // device.id, current_marker, device_name, device.created_at, device.last_seen,
+          device.id,
+          current_marker,
+          device_name,
+          device.created,
+          device.last_seen,
         );
       }
     }
@@ -930,14 +920,7 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(
-        manager,
-        Recipient::Group(master_key),
-        timestamp,
-        data_message,
-        None,
-      )
-      .await?;
+      send(manager, Recipient::Group(master_key), timestamp, data_message, None).await?;
     }
     Cmd::SendToThread {
       message,
@@ -966,14 +949,7 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(
-        manager,
-        recipient_from_thread(thread),
-        timestamp,
-        data_message,
-        quote,
-      )
-      .await?;
+      send(manager, recipient_from_thread(thread), timestamp, data_message, quote).await?;
     }
 
     Cmd::EditMessage {
@@ -1037,7 +1013,7 @@ pub async fn run(
           remove: Some(false),
           target_sent_timestamp: Some(target_timestamp),
           target_author_aci: Some(uuid.into()),
-          target_author_aci_binary: Some(uuid.into()),
+          // target_author_aci_binary: Some(uuid.into()),
           // target_author_aci_binary: Some(
           //   uuid
           //     .as_deref()
@@ -1049,14 +1025,7 @@ pub async fn run(
         ..Default::default()
       };
 
-      send(
-        manager,
-        recipient_from_thread(thread),
-        timestamp,
-        data_message,
-        None,
-      )
-      .await?;
+      send(manager, recipient_from_thread(thread), timestamp, data_message, None).await?;
     }
     Cmd::DeleteMessage {
       thread,
@@ -1092,14 +1061,7 @@ pub async fn run(
         ));
       }
 
-      send(
-        manager,
-        recipient_from_thread(thread),
-        timestamp,
-        delete_message,
-        None,
-      )
-      .await?;
+      send(manager, recipient_from_thread(thread), timestamp, delete_message, None).await?;
 
       Logger::log("successfully sent the delete message");
     }
