@@ -663,8 +663,8 @@ pub fn link_device(servers: SignalServers, device_name: String, output: mpsc::Un
 
     let (provisioning_link_tx, provisioning_link_rx) = oneshot::channel();
     let output1 = output.clone();
-    Logger::log(format!("about to send something, but gonna sleep a little first"));
-    sleep(Duration::from_secs(2)).await;
+    // Logger::log(format!("about to send something, but gonna sleep a little first"));
+    // sleep(Duration::from_secs(2)).await;
 
     let manager = future::join(
       async move {

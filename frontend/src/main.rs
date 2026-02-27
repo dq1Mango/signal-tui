@@ -1998,8 +1998,6 @@ async fn real_main() -> anyhow::Result<()> {
 
   Logger::log(&db_path);
   // let db_path = "/home/mqngo/Coding/rust/signal-tui/plzwork.db3";
-  // let mut config_store = SqliteStore::open_migrate_to_encrypted(&db_path, "secret", OnNewIdentity::Trust).await?;
-  // Logger::log("migrated!");
   let mut config_store =
     SqliteStore::open_with_passphrase(&db_path, "secret".into(), OnNewIdentity::Trust).await?;
 
@@ -2080,7 +2078,6 @@ async fn real_main() -> anyhow::Result<()> {
 
   let spawner = SignalSpawner::new(manager, action_tx.clone());
 
-  // spawner.sync_contacts();
   _ = update_contacts(&mut model, &spawner).await;
   Logger::log("updated th econtacts and groups");
   _ = model.update_groups(&spawner).await;

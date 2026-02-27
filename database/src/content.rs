@@ -17,12 +17,15 @@ use sqlx::{query, query_as, query_scalar, types::Json};
 
 use crate::{
   SqliteStore, SqliteStoreError,
-  data::{MinimalSqlContact, SqlContact, SqlGroup, SqlMessage, SqlProfile, SqlStickerPack},
+  data::{SqlContact, SqlGroup, SqlMessage, SqlProfile, SqlStickerPack},
+  error::SqlxErrorExt,
 };
 
-pub type RawMessagesIter = Box<dyn DoubleEndedIterator<Item = Result<Content, SqliteStoreError>> + Send + Sync>;
-pub type ContactsIter = Box<dyn Iterator<Item = Result<Contact, SqliteStoreError>> + Send + Sync>;
-pub type RawContactsIter = Box<dyn Iterator<Item = Result<Contact, SqliteStoreError>> + Send + Sync + 'static>;
+pub type RawMessagesIter =
+  Box<dyn DoubleEndedIterator<Item = Result<Content, SqliteStoreError>> + Send + Sync>;
+// pub type ContactsIter = Box<dyn Iterator<Item = Result<Contact, SqliteStoreError>> + Send + Sync>;
+pub type RawContactsIter =
+  Box<dyn Iterator<Item = Result<Contact, SqliteStoreError>> + Send + Sync + 'static>;
 
 impl SqliteStore {
   pub async fn raw_messages(
@@ -89,54 +92,63 @@ impl SqliteStore {
     Ok(sql_contacts)
     // Ok(Box::new(sql_contacts.into_iter().map(TryInto::try_into)))
   }
-
-  pub async fn fast_contacts(&self) -> Result<RawContactsIter, SqliteStoreError> {
-    let sql_contacts: Vec<MinimalSqlContact> = query_as!(
-      MinimalSqlContact,
-      r#"SELECT
-                uuid AS "uuid: _",
-                phone_number,
-                name,
-                profile_key,
-                expire_timer,
-                expire_timer_version,
-                inbox_position,
-                destination_aci AS "destination_aci: _",
-                identity_key,
-                is_verified
-            FROM contacts c
-            LEFT JOIN contacts_verification_state cv ON c.uuid = cv.destination_aci
-            ORDER BY c.inbox_position"#
-    )
-    .fetch_all(&self.db)
-    .await?;
-    Ok(Box::new(sql_contacts.into_iter().map(TryInto::try_into)))
-  }
 }
 
 impl ContentsStore for SqliteStore {
   type ContentsStoreError = SqliteStoreError;
 
-  type ContactsIter = ContactsIter;
+  type ContactsIter = Box<dyn Iterator<Item = Result<Contact, Self::ContentsStoreError>> + Send + Sync>;
 
   type GroupsIter =
     Box<dyn Iterator<Item = Result<(GroupMasterKeyBytes, Group), Self::ContentsStoreError>> + Send + Sync>;
 
-  // type MessagesIter = Box<dyn Iterator<Item = Result<Content, Self::ContentsStoreError>> + Send + Sync>;
-  type MessagesIter = Box<dyn Iterator<Item = Result<Content, SqliteStoreError>> + Send + Sync>;
+  type MessagesIter = Box<dyn Iterator<Item = Result<Content, Self::ContentsStoreError>> + Send + Sync>;
 
-  type StickerPacksIter = Box<dyn Iterator<Item = Result<StickerPack, Self::ContentsStoreError>> + Send + Sync>;
+  type StickerPacksIter =
+    Box<dyn Iterator<Item = Result<StickerPack, Self::ContentsStoreError>> + Send + Sync>;
 
   async fn clear_profiles(&mut self) -> Result<(), Self::ContentsStoreError> {
-    todo!()
+    let mut transaction = self.db.begin().await.into_protocol_error()?;
+    query!("DELETE FROM profiles").execute(&mut *transaction).await?;
+    query!("DELETE FROM profile_keys")
+      .execute(&mut *transaction)
+      .await?;
+    query!("DELETE FROM profile_avatars")
+      .execute(&mut *transaction)
+      .await?;
+    transaction.commit().await.into_protocol_error()?;
+    Ok(())
   }
 
   async fn clear_contents(&mut self) -> Result<(), Self::ContentsStoreError> {
-    todo!()
+    let mut transaction = self.db.begin().await.into_protocol_error()?;
+    query!("DELETE FROM thread_messages")
+      .execute(&mut *transaction)
+      .await?;
+    query!("DELETE FROM threads").execute(&mut *transaction).await?;
+    query!("DELETE FROM contacts").execute(&mut *transaction).await?;
+    query!("DELETE FROM contacts_verification_state")
+      .execute(&mut *transaction)
+      .await?;
+    query!("DELETE FROM groups").execute(&mut *transaction).await?;
+    query!("DELETE FROM group_avatars")
+      .execute(&mut *transaction)
+      .await?;
+    query!("DELETE FROM sticker_packs")
+      .execute(&mut *transaction)
+      .await?;
+    transaction.commit().await.into_protocol_error()?;
+    Ok(())
   }
 
   async fn clear_messages(&mut self) -> Result<(), Self::ContentsStoreError> {
-    todo!()
+    let mut transaction = self.db.begin().await.into_protocol_error()?;
+    query!("DELETE FROM thread_messages")
+      .execute(&mut *transaction)
+      .await?;
+    query!("DELETE FROM threads").execute(&mut *transaction).await?;
+    transaction.commit().await.into_protocol_error()?;
+    Ok(())
   }
 
   async fn clear_thread(&mut self, thread: &Thread) -> Result<(), Self::ContentsStoreError> {
@@ -197,7 +209,9 @@ impl ContentsStore for SqliteStore {
     let destination_service_id = destination.service_id_string();
 
     let proto_bytes = prost::Message::encode_to_vec(&body.into_proto());
-    let timestamp: i64 = timestamp.try_into().map_err(|_| SqliteStoreError::InvalidFormat)?;
+    let timestamp: i64 = timestamp
+      .try_into()
+      .map_err(|_| SqliteStoreError::InvalidFormat)?;
 
     query!(
       "INSERT OR REPLACE INTO thread_messages (
@@ -229,8 +243,14 @@ impl ContentsStore for SqliteStore {
     Ok(())
   }
 
-  async fn delete_message(&mut self, thread: &Thread, timestamp: u64) -> Result<bool, Self::ContentsStoreError> {
-    let timestamp: i64 = timestamp.try_into().map_err(|_| SqliteStoreError::InvalidFormat)?;
+  async fn delete_message(
+    &mut self,
+    thread: &Thread,
+    timestamp: u64,
+  ) -> Result<bool, Self::ContentsStoreError> {
+    let timestamp: i64 = timestamp
+      .try_into()
+      .map_err(|_| SqliteStoreError::InvalidFormat)?;
     let (group_master_key, recipient_id) = thread.unzip();
     let res = query!(
       "DELETE FROM thread_messages
@@ -245,8 +265,14 @@ impl ContentsStore for SqliteStore {
     Ok(res.rows_affected() > 0)
   }
 
-  async fn message(&self, thread: &Thread, timestamp: u64) -> Result<Option<Content>, Self::ContentsStoreError> {
-    let timestamp: i64 = timestamp.try_into().map_err(|_| SqliteStoreError::InvalidFormat)?;
+  async fn message(
+    &self,
+    thread: &Thread,
+    timestamp: u64,
+  ) -> Result<Option<Content>, Self::ContentsStoreError> {
+    let timestamp: i64 = timestamp
+      .try_into()
+      .map_err(|_| SqliteStoreError::InvalidFormat)?;
     let (group_master_key, recipient_id) = thread.unzip();
     let message = query_as!(
       SqlMessage,
@@ -312,7 +338,12 @@ impl ContentsStore for SqliteStore {
   }
 
   async fn clear_contacts(&mut self) -> Result<(), Self::ContentsStoreError> {
-    query!("DELETE FROM contacts").execute(&self.db).await?;
+    let mut transaction = self.db.begin().await.into_protocol_error()?;
+    query!("DELETE FROM contacts").execute(&mut *transaction).await?;
+    query!("DELETE FROM contacts_verification_state")
+      .execute(&mut *transaction)
+      .await?;
+    transaction.commit().await.into_protocol_error()?;
     Ok(())
   }
 
@@ -419,7 +450,12 @@ impl ContentsStore for SqliteStore {
   }
 
   async fn clear_groups(&mut self) -> Result<(), Self::ContentsStoreError> {
-    query!("DELETE FROM groups").execute(&self.db).await?;
+    let mut transaction = self.db.begin().await.into_protocol_error()?;
+    query!("DELETE FROM groups").execute(&mut *transaction).await?;
+    query!("DELETE FROM group_avatars")
+      .execute(&mut *transaction)
+      .await?;
+    transaction.commit().await.into_protocol_error()?;
     Ok(())
   }
 
@@ -469,7 +505,10 @@ impl ContentsStore for SqliteStore {
     Ok(Box::new(sql_groups.into_iter().map(SqlGroup::into_group)))
   }
 
-  async fn group(&self, master_key: GroupMasterKeyBytes) -> Result<Option<Group>, Self::ContentsStoreError> {
+  async fn group(
+    &self,
+    master_key: GroupMasterKeyBytes,
+  ) -> Result<Option<Group>, Self::ContentsStoreError> {
     let master_key_bytes = master_key.as_slice();
     query_as!(
       SqlGroup,
@@ -502,9 +541,9 @@ impl ContentsStore for SqliteStore {
   ) -> Result<(), Self::ContentsStoreError> {
     let master_key_bytes = master_key.as_slice();
     query!(
-      "UPDATE group_avatars SET bytes = ? WHERE group_master_key = ?",
-      avatar,
+      "INSERT OR REPLACE INTO group_avatars(group_master_key, bytes) VALUES (?, ?)",
       master_key_bytes,
+      avatar,
     )
     .execute(&self.db)
     .await?;
@@ -525,7 +564,11 @@ impl ContentsStore for SqliteStore {
     .map_err(From::from)
   }
 
-  async fn upsert_profile_key(&mut self, uuid: &Uuid, key: ProfileKey) -> Result<bool, Self::ContentsStoreError> {
+  async fn upsert_profile_key(
+    &mut self,
+    uuid: &Uuid,
+    key: ProfileKey,
+  ) -> Result<bool, Self::ContentsStoreError> {
     let profile_key_bytes = key.bytes.as_slice();
     let res = query_scalar!(
       "INSERT OR REPLACE INTO profile_keys (uuid, key) VALUES (?, ?)",
@@ -537,9 +580,12 @@ impl ContentsStore for SqliteStore {
     Ok(res.rows_affected() == 0)
   }
 
-  async fn profile_key(&self, service_id: &ServiceId) -> Result<Option<ProfileKey>, Self::ContentsStoreError> {
-    let service_id = service_id.service_id_string();
-    let profile_key = query_scalar!("SELECT key FROM profile_keys WHERE uuid = ?", service_id)
+  async fn profile_key(
+    &self,
+    service_id: &ServiceId,
+  ) -> Result<Option<ProfileKey>, Self::ContentsStoreError> {
+    let uuid = service_id.raw_uuid();
+    let profile_key = query_scalar!("SELECT key FROM profile_keys WHERE uuid = ?", uuid)
       .fetch_optional(&self.db)
       .await?
       .and_then(|bytes| bytes.try_into().ok().map(ProfileKey::create));
@@ -577,7 +623,11 @@ impl ContentsStore for SqliteStore {
     Ok(())
   }
 
-  async fn profile(&self, uuid: Uuid, key: ProfileKey) -> Result<Option<Profile>, Self::ContentsStoreError> {
+  async fn profile(
+    &self,
+    uuid: Uuid,
+    key: ProfileKey,
+  ) -> Result<Option<Profile>, Self::ContentsStoreError> {
     let profile_key_bytes = key.bytes.as_slice();
     let profile = query_as!(
       SqlProfile,
@@ -605,9 +655,13 @@ impl ContentsStore for SqliteStore {
     _key: ProfileKey,
     profile: &AvatarBytes,
   ) -> Result<(), Self::ContentsStoreError> {
-    query!("UPDATE profile_avatars SET bytes = ? WHERE uuid = ?", profile, uuid,)
-      .execute(&self.db)
-      .await?;
+    query!(
+      "INSERT OR REPLACE INTO profile_avatars(uuid, bytes) VALUES (?, ?)",
+      uuid,
+      profile,
+    )
+    .execute(&self.db)
+    .await?;
     Ok(())
   }
 

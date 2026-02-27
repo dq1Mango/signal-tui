@@ -20,11 +20,6 @@ uuid = "1.12.0"
 # Explicitly use the libsqlite3-sys crate with the bundled-sqlcipher feature
 libsqlite3-sys = { version = "0.30", features = ["bundled-sqlcipher"] }
 
-
-# [dependencies.rusqlite]
-# version = "0.38.0"
-# features = ["bundled"]
-
 [dev-dependencies]
 tokio = { version = "1.48.0", features = ["rt", "macros"] }
 rand = "0.9"

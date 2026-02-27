@@ -10,22 +10,24 @@ use tracing::error;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SqliteStoreError {
-  #[error(transparent)]
-  Db(#[from] sqlx::Error),
-  #[error(transparent)]
-  Migrate(#[from] sqlx::migrate::MigrateError),
-  #[error(transparent)]
-  Json(#[from] serde_json::Error),
-  #[error(transparent)]
-  Uuid(#[from] uuid::Error),
-  #[error(transparent)]
-  PhoneNumber(#[from] phonenumber::ParseError),
-  #[error("conversation error")]
-  InvalidFormat,
-  #[error(transparent)]
-  Protocol(#[from] SignalProtocolError),
-  #[error("invalid device ID: {0}")]
-  InvalidDeviceId(#[from] InvalidDeviceId),
+    #[error(transparent)]
+    Db(#[from] sqlx::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Migrate(#[from] sqlx::migrate::MigrateError),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Uuid(#[from] uuid::Error),
+    #[error(transparent)]
+    PhoneNumber(#[from] phonenumber::ParseError),
+    #[error("conversation error")]
+    InvalidFormat,
+    #[error(transparent)]
+    Protocol(#[from] SignalProtocolError),
+    #[error("invalid device ID: {0}")]
+    InvalidDeviceId(#[from] InvalidDeviceId),
 }
 
 impl StoreError for SqliteStoreError {}
