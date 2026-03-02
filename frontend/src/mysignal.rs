@@ -196,7 +196,7 @@ impl SignalSpawner {
             download_attachment(&mut manager, &attachment_pointer, &dir).await
           }
 
-          Some(content) = messages.next() => {
+          content = messages.next() => {match content {Some(content) => {
             Logger::log("mhhhh some juicy content for you");
             match &content {
               Received::QueueEmpty => {
@@ -214,7 +214,9 @@ impl SignalSpawner {
 
             _ = output.send(Action::Receive(content));
 
-          }
+          },
+          None => {Logger::log("we died lol "); break;}
+          }}
 
           Some(task) = recv.recv() => {
             Logger::log(format!("gyatt a task: {:#?}", &task));
@@ -289,11 +291,7 @@ impl SignalSpawner {
     return rx.await.expect("kaboom");
   }
 
-  pub async fn retrieve_profile(
-    &self,
-    uuid: Uuid,
-    profile_key: Option<ProfileKey>,
-  ) -> anyhow::Result<Profile> {
+  pub async fn retrieve_profile(&self, uuid: Uuid, profile_key: Option<ProfileKey>) -> anyhow::Result<Profile> {
     let (tx, rx) = oneshot::channel();
 
     _ = self.profile_requests.send(ProfileRequest {

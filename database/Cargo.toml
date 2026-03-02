@@ -5,7 +5,8 @@ edition = "2024"
 license = "AGPL-3.0-only"
 
 [dependencies]
-presage = { path = "../presage/" }
+# presage = { path = "../presage/" }
+presage = { git = "https://github.com/whisperfish/presage" }
 
 async-trait = "0.1.83"
 bytes = "1.9.0"

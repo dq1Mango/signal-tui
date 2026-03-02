@@ -1,7 +1,7 @@
 use presage::{
   libsignal_service::{
-    prelude::{InvalidDeviceId, phonenumber},
-    protocol::SignalProtocolError,
+    prelude::phonenumber,
+    protocol::{InvalidDeviceId, SignalProtocolError},
   },
   store::StoreError,
 };
@@ -32,9 +32,7 @@ pub enum SqliteStoreError {
 
 impl StoreError for SqliteStoreError {}
 
-impl From<SqliteStoreError>
-  for presage::libsignal_service::protocol::SignalProtocolError
-{
+impl From<SqliteStoreError> for presage::libsignal_service::protocol::SignalProtocolError {
   fn from(error: SqliteStoreError) -> Self {
     error!(%error, "presage sqlite store error");
     Self::InvalidState("presage sqlite store error", error.to_string())
@@ -47,9 +45,7 @@ pub(crate) trait SqlxErrorExt<T> {
 
 impl<T> SqlxErrorExt<T> for Result<T, sqlx::Error> {
   fn into_protocol_error(self) -> Result<T, SignalProtocolError> {
-    self.map_err(|error| {
-      SignalProtocolError::InvalidState("sqlite", error.to_string())
-    })
+    self.map_err(|error| SignalProtocolError::InvalidState("sqlite", error.to_string()))
   }
 }
 

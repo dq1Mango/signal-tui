@@ -27,6 +27,7 @@ use presage::{
     configuration::SignalServers,
     models::Attachment,
     prelude::{ProfileKey, Uuid},
+    protocol::ServiceId,
     zkgroup::GroupMasterKeyBytes,
   },
   model::groups::Group,
@@ -241,10 +242,10 @@ impl RatatuiBodyRange {
         Logger::log(format!("we mentioned an ACI: {:?}", x));
         return None;
       }
-      // Some(AssociatedValue::MentionAciBinary(x)) => {
-      //   Logger::log(format!("we mentioned an ACI Binary: {:?}", x));
-      //   return None;
-      // }
+      Some(AssociatedValue::MentionAciBinary(x)) => {
+        Logger::log(format!("we mentioned an ACI Binary: {:?}", x));
+        return None;
+      }
       None => return None,
     };
 
@@ -557,7 +558,7 @@ impl Model {
         },
         num_members: 1,
       },
-      Thread::Contact(uuid),
+      Thread::Contact(ServiceId::Aci(uuid.into())),
     );
 
     self.chats.push(chat);
@@ -1521,7 +1522,7 @@ impl Chat {
     self.loaded_from = self.loaded_from.checked_sub_signed(delta).unwrap();
 
     let (uuid, group_key) = match &self.thread {
-      Thread::Contact(uuid) => (Some(uuid.clone()), None),
+      Thread::Contact(service_id) => (Some(service_id.raw_uuid()), None),
       Thread::Group(group_key) => (None, Some(group_key.clone())),
     };
 
@@ -2073,9 +2074,7 @@ async fn real_main() -> anyhow::Result<()> {
           Received::Contacts => Logger::log("we gyatt some contacts".to_string()),
           Received::Content(content) => {
             match loading_model.raw_duration {
-              None => {
-                loading_model.raw_duration = Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp)
-              }
+              None => loading_model.raw_duration = Some(Utc::now().timestamp_millis() as u64 - content.metadata.timestamp),
               _ => {}
             }
 

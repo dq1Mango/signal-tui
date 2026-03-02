@@ -19,13 +19,13 @@ use presage::Error;
 use presage::libsignal_service::configuration::SignalServers;
 use presage::libsignal_service::content::Reaction;
 use presage::libsignal_service::pre_keys::PreKeysStore;
-use presage::libsignal_service::prelude::DeviceId;
 use presage::libsignal_service::prelude::ProfileKey;
 use presage::libsignal_service::prelude::Uuid;
 use presage::libsignal_service::prelude::phonenumber::PhoneNumber;
 use presage::libsignal_service::proto::data_message::Quote;
 use presage::libsignal_service::proto::sync_message::Sent;
 use presage::libsignal_service::protocol::Aci;
+use presage::libsignal_service::protocol::DeviceId;
 use presage::libsignal_service::protocol::ServiceId;
 use presage::libsignal_service::sender::AttachmentSpec;
 use presage::libsignal_service::zkgroup::GroupMasterKeyBytes;
@@ -177,7 +177,7 @@ pub enum Cmd {
   ListStickerPacks,
   // #[clap(about = "Get a single contact by UUID")]
   GetContact {
-    uuid: Uuid,
+    id: ServiceId,
   },
   // #[clap(about = "Find a contact in the embedded DB")]
   FindContact {
@@ -291,7 +291,7 @@ pub fn attachments_tmp_dir() -> anyhow::Result<TempDir> {
 
 fn recipient_from_thread(thread: Thread) -> Recipient {
   match thread {
-    Thread::Contact(uuid) => Recipient::Contact(uuid),
+    Thread::Contact(uuid) => Recipient::Contact(uuid.raw_uuid()),
     Thread::Group(group_key) => Recipient::Group(group_key),
   }
 }
@@ -500,16 +500,16 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
     }
   }
 
-  async fn format_contact(uuid: &Uuid, manager: &MyManager) -> String {
+  async fn format_contact(id: &ServiceId, manager: &MyManager) -> String {
     manager
       .store()
-      .contact_by_id(uuid)
+      .contact_by_id(id)
       .await
       .ok()
       .flatten()
       .filter(|c| !c.name.is_empty())
-      .map(|c| format!("{}: {}", c.name, uuid))
-      .unwrap_or_else(|| uuid.to_string())
+      .map(|c| format!("{}: {}", c.name, id.raw_uuid()))
+      .unwrap_or_else(|| id.raw_uuid().to_string())
   }
 
   async fn format_group(key: [u8; 32], manager: &MyManager) -> String {
@@ -589,7 +589,7 @@ async fn print_message<S: Store>(manager: &MyManager, notifications: bool, conte
         (format!("To {contact} @ {ts}"), body)
       }
       Msg::Received(Thread::Group(key), body) => {
-        let sender = format_contact(&content.metadata.sender.raw_uuid(), manager).await;
+        let sender = format_contact(&content.metadata.sender, manager).await;
         let group = format_group(*key, manager).await;
         (format!("From {sender} to group {group} @ {ts}: "), body)
       }
@@ -857,7 +857,7 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
       println!("Added new secondary device");
     }
     Cmd::UnlinkDevice { device_id } => {
-      manager.unlink_secondary(device_id.into()).await?;
+      manager.unlink_secondary(device_id).await?;
       println!("Unlinked device with id: {}", device_id);
     }
     Cmd::ListDevices => {
@@ -867,7 +867,7 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
       for device in devices {
         let device_name = device.name.unwrap_or_else(|| "(no device name)".to_string());
         // TODO: look at this
-        let current_marker = if DeviceId::new(device.id).unwrap() == current_device_id {
+        let current_marker = if DeviceId::new(device.id.into()).unwrap() == current_device_id {
           "(this device)"
         } else {
           ""
@@ -879,7 +879,7 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
           device.id,
           current_marker,
           device_name,
-          device.created,
+          device.created_at,
           device.last_seen,
         );
       }
@@ -1013,7 +1013,7 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
           remove: Some(false),
           target_sent_timestamp: Some(target_timestamp),
           target_author_aci: Some(uuid.into()),
-          // target_author_aci_binary: Some(uuid.into()),
+          target_author_aci_binary: Some(uuid.into()),
           // target_author_aci_binary: Some(
           //   uuid
           //     .as_deref()
@@ -1129,9 +1129,9 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
     Cmd::Whoami => {
       println!("{:?}", &manager.whoami().await?);
     }
-    Cmd::GetContact { ref uuid } => match manager.store().contact_by_id(uuid).await? {
+    Cmd::GetContact { ref id } => match manager.store().contact_by_id(id).await? {
       Some(contact) => println!("{contact:#?}"),
-      None => eprintln!("Could not find contact for {uuid}"),
+      None => eprintln!("Could not find contact for {}", id.raw_uuid()),
     },
     Cmd::FindContact {
       uuid,
@@ -1176,7 +1176,7 @@ pub async fn run(manager: &mut MyManager, subcommand: Cmd, output: mpsc::Unbound
     } => {
       let thread = match (group_master_key, recipient_uuid) {
         (Some(master_key), _) => Thread::Group(master_key),
-        (_, Some(uuid)) => Thread::Contact(uuid),
+        (_, Some(uuid)) => Thread::Contact(ServiceId::Aci(uuid.into())),
         _ => unreachable!(),
       };
 

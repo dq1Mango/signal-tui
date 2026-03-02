@@ -46,17 +46,14 @@ impl TryInto<Contact> for SqlContact {
   fn try_into(self) -> Result<Contact, Self::Error> {
     Ok(Contact {
       uuid: self.uuid,
-      phone_number: self
-        .phone_number
-        .map(|p| phonenumber::parse(None, &p))
-        .transpose()?,
+      phone_number: self.phone_number.map(|p| phonenumber::parse(None, &p)).transpose()?,
       name: self.name,
       verified: Verified {
-        // destination_aci_binary: self
-        //     .destination_aci
-        //     .as_deref()
-        //     .and_then(Aci::parse_from_service_id_string)
-        //     .map(|aci| aci.service_id_binary()),
+        destination_aci_binary: self
+          .destination_aci
+          .as_deref()
+          .and_then(Aci::parse_from_service_id_string)
+          .map(|aci| aci.service_id_binary()),
         destination_aci: self.destination_aci,
         identity_key: self.identity_key,
         state: self.is_verified.map(|v| {
@@ -209,12 +206,11 @@ impl TryInto<Content> for SqlMessage {
       content_body,
       was_plaintext,
     } = self;
-    let body: proto::Content =
-      prost::Message::decode(&*content_body).map_err(|_| SqliteStoreError::InvalidFormat)?;
-    let sender = ServiceId::parse_from_service_id_string(&sender_service_id)
-      .ok_or_else(|| SqliteStoreError::InvalidFormat)?;
-    let destination = ServiceId::parse_from_service_id_string(&destination_service_id)
-      .ok_or_else(|| SqliteStoreError::InvalidFormat)?;
+    let body: proto::Content = prost::Message::decode(&*content_body).map_err(|_| SqliteStoreError::InvalidFormat)?;
+    let sender =
+      ServiceId::parse_from_service_id_string(&sender_service_id).ok_or_else(|| SqliteStoreError::InvalidFormat)?;
+    let destination =
+      ServiceId::parse_from_service_id_string(&destination_service_id).ok_or_else(|| SqliteStoreError::InvalidFormat)?;
     let metadata = Metadata {
       sender,
       destination,

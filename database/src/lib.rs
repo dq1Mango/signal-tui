@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 
 use presage::{
-  libsignal_service::{prelude::MasterKey, protocol::SenderCertificate},
+  libsignal_service::{
+    prelude::MasterKey,
+    protocol::{ProtocolStore, SenderCertificate},
+  },
   store::{StateStore, Store},
 };
 use protocol::{IdentityType, SqliteProtocolStore};
@@ -163,6 +166,9 @@ impl SqliteStore {
   }
 }
 
+// wow i love rust
+impl ProtocolStore for SqliteProtocolStore {}
+
 impl Store for SqliteStore {
   type Error = SqliteStoreError;
 
@@ -193,9 +199,7 @@ impl Store for SqliteStore {
 impl StateStore for SqliteStore {
   type StateStoreError = SqliteStoreError;
 
-  async fn load_registration_data(
-    &self,
-  ) -> Result<Option<presage::manager::RegistrationData>, Self::StateStoreError> {
+  async fn load_registration_data(&self) -> Result<Option<presage::manager::RegistrationData>, Self::StateStoreError> {
     query_scalar!("SELECT value FROM kv WHERE key = 'registration'")
       .fetch_optional(&self.db)
       .await?
@@ -228,19 +232,11 @@ impl StateStore for SqliteStore {
       .execute(&mut *transaction)
       .await?;
     query!("DELETE FROM sessions").execute(&mut *transaction).await?;
-    query!("DELETE FROM identities")
-      .execute(&mut *transaction)
-      .await?;
+    query!("DELETE FROM identities").execute(&mut *transaction).await?;
     query!("DELETE FROM pre_keys").execute(&mut *transaction).await?;
-    query!("DELETE FROM signed_pre_keys")
-      .execute(&mut *transaction)
-      .await?;
-    query!("DELETE FROM kyber_pre_keys")
-      .execute(&mut *transaction)
-      .await?;
-    query!("DELETE FROM sender_keys")
-      .execute(&mut *transaction)
-      .await?;
+    query!("DELETE FROM signed_pre_keys").execute(&mut *transaction).await?;
+    query!("DELETE FROM kyber_pre_keys").execute(&mut *transaction).await?;
+    query!("DELETE FROM sender_keys").execute(&mut *transaction).await?;
     transaction.commit().await.into_protocol_error()?;
     Ok(())
   }
@@ -278,10 +274,7 @@ impl StateStore for SqliteStore {
       .map_err(From::from)
   }
 
-  async fn save_sender_certificate(
-    &self,
-    certificate: &SenderCertificate,
-  ) -> Result<(), Self::StateStoreError> {
+  async fn save_sender_certificate(&self, certificate: &SenderCertificate) -> Result<(), Self::StateStoreError> {
     let value = certificate.serialized()?;
     query!(
       "INSERT OR REPLACE INTO kv (key, value) VALUES ('sender_certificate', ?)",
@@ -292,26 +285,20 @@ impl StateStore for SqliteStore {
     Ok(())
   }
 
-  // async fn fetch_master_key(&self) -> Result<Option<MasterKey>, Self::StateStoreError> {
-  //     query_scalar!("SELECT value FROM kv WHERE key = 'master_key' LIMIT 1")
-  //         .fetch_optional(&self.db)
-  //         .await?
-  //         .map(|value| MasterKey::from_slice(&value))
-  //         .transpose()
-  //         .map_err(|_| SqliteStoreError::InvalidFormat)
-  // }
-  //
-  // async fn store_master_key(
-  //     &self,
-  //     master_key: Option<&MasterKey>,
-  // ) -> Result<(), Self::StateStoreError> {
-  //     let value = master_key.map(|k| &k.inner[..]);
-  //     query!(
-  //         "INSERT OR REPLACE INTO kv (key, value) VALUES ('master_key', ?)",
-  //         value
-  //     )
-  //     .execute(&self.db)
-  //     .await?;
-  //     Ok(())
-  // }
+  async fn fetch_master_key(&self) -> Result<Option<MasterKey>, Self::StateStoreError> {
+    query_scalar!("SELECT value FROM kv WHERE key = 'master_key' LIMIT 1")
+      .fetch_optional(&self.db)
+      .await?
+      .map(|value| MasterKey::from_slice(&value))
+      .transpose()
+      .map_err(|_| SqliteStoreError::InvalidFormat)
+  }
+
+  async fn store_master_key(&self, master_key: Option<&MasterKey>) -> Result<(), Self::StateStoreError> {
+    let value = master_key.map(|k| &k.inner[..]);
+    query!("INSERT OR REPLACE INTO kv (key, value) VALUES ('master_key', ?)", value)
+      .execute(&self.db)
+      .await?;
+    Ok(())
+  }
 }
