@@ -26,7 +26,7 @@ checksum = "b169f7a6d4742236a0a00c541b845991d0ac43e546831af1249753ab4c3aa3a0"
 dependencies = [
  "cfg-if",
  "cipher",
- "cpufeatures",
+ "cpufeatures 0.2.17",
  "zeroize",
 ]
 
@@ -121,7 +121,7 @@ checksum = "0ae92a5119aa49cdbcf6b9f893fe4e1d98b04ccbf82ee0584ad948a44a734dea"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -132,7 +132,7 @@ checksum = "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072"
 dependencies = [
  "base64ct",
  "blake2",
- "cpufeatures",
+ "cpufeatures 0.2.17",
  "password-hash",
  "zeroize",
 ]
@@ -170,7 +170,7 @@ checksum = "d0dcd11549aa9d043141c7d54839771cbf9a8d38084808c6fa00e62b46b114f0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -272,7 +272,7 @@ checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -307,7 +307,7 @@ checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -336,6 +336,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomic-polyfill"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cf2bce30dfe09ef0bfaef228b9d414faaf7e563035494d7fe092dba54b300f4"
+dependencies = [
+ "critical-section",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -352,11 +361,11 @@ dependencies = [
  "boring",
  "chacha20poly1305",
  "chrono",
- "const-str 1.1.0",
+ "const-str",
  "displaydoc",
  "hex",
  "libc",
- "libcrux-ml-kem 0.0.5",
+ "libcrux-ml-kem",
  "log",
  "prost 0.14.3",
  "prost-build 0.14.3",
@@ -382,7 +391,7 @@ dependencies = [
  "derive_utils",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -480,7 +489,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -695,7 +704,18 @@ checksum = "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818"
 dependencies = [
  "cfg-if",
  "cipher",
- "cpufeatures",
+ "cpufeatures 0.2.17",
+]
+
+[[package]]
+name = "chacha20"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f8d983286843e49675a4b7a2d174efe136dc93a18d69130dd18198a6c167601"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+ "rand_core 0.10.0",
 ]
 
 [[package]]
@@ -705,7 +725,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35"
 dependencies = [
  "aead",
- "chacha20",
+ "chacha20 0.9.1",
  "cipher",
  "poly1305",
  "zeroize",
@@ -757,6 +777,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cobs"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fa961b519f0b462e3a3b4a34b64d119eeaca1d59af726fe450bbba07a9fc0a1"
+dependencies = [
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "color_quant"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -803,12 +832,6 @@ checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
 name = "const-str"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "451d0640545a0553814b4c646eb549343561618838e9b42495f466131fe3ad49"
-
-[[package]]
-name = "const-str"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18f12cc9948ed9604230cdddc7c86e270f9401ccbe3c2e98a4378c5e7632212f"
@@ -844,7 +867,7 @@ version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0940496e5c83c54f3b753d5317daec82e8edac71c33aaa1f666d76f518de2444"
 dependencies = [
- "hax-lib 0.3.5",
+ "hax-lib",
  "pastey",
  "rand 0.9.2",
 ]
@@ -863,6 +886,15 @@ name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "cpufeatures"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201"
 dependencies = [
  "libc",
 ]
@@ -890,6 +922,12 @@ checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
 dependencies = [
  "cfg-if",
 ]
+
+[[package]]
+name = "critical-section"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
 name = "crossbeam-deque"
@@ -1002,7 +1040,7 @@ version = "4.1.3"
 source = "git+https://github.com/signalapp/curve25519-dalek?tag=signal-curve25519-4.1.3#7c6d34756355a3566a704da84dce7b1c039a6572"
 dependencies = [
  "cfg-if",
- "cpufeatures",
+ "cpufeatures 0.2.17",
  "curve25519-dalek-derive",
  "digest",
  "fiat-crypto",
@@ -1020,7 +1058,7 @@ source = "git+https://github.com/signalapp/curve25519-dalek?tag=signal-curve2551
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1044,7 +1082,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1055,7 +1093,7 @@ checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
 dependencies = [
  "darling_core",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1081,7 +1119,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn",
 ]
 
 [[package]]
@@ -1112,7 +1150,7 @@ checksum = "ef941ded77d15ca19b40374869ac6000af1c9f2a4c0f3d4c70926287e6364a8f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1134,7 +1172,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc_version",
- "syn 2.0.111",
+ "syn",
  "unicode-xid",
 ]
 
@@ -1146,7 +1184,7 @@ checksum = "362f47930db19fe7735f527e6595e4900316b893ebf6d48ad3d31be928d57dd6"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1200,7 +1238,7 @@ checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1252,6 +1290,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-io"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef1a6892d9eef45c8fa6b9e0086428a2cca8491aca8f787c534a3d6d0bcb3ced"
+
+[[package]]
+name = "embedded-io"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
 name = "endi"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1275,27 +1325,7 @@ checksum = "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
-]
-
-[[package]]
-name = "env_filter"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a1c3cc8e57274ec99de65301228b537f1e4eedc1b8e0f9411c6caac8ae7308f"
-dependencies = [
- "log",
- "regex",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.11.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2daee4ea451f429a58296525ddf28b45a3b64f1acf6587e2067437bb11e218d"
-dependencies = [
- "env_filter",
- "log",
+ "syn",
 ]
 
 [[package]]
@@ -1315,7 +1345,7 @@ checksum = "44f23cf4b44bfce11a86ace86f8a73ffdec849c9fd00a386a53d278bd9e81fb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1404,7 +1434,7 @@ checksum = "a0aca10fb742cb43f9e7bb8467c91aa9bcb8e3ffbc6a6f7389bb93ffc920577d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1485,7 +1515,7 @@ checksum = "1a5c6c585bc94aaf2c7b51dd4c2ba22680844aba4c687be581871a6f518c5742"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1599,7 +1629,7 @@ checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -1741,6 +1771,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash32"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0c35f58762feb77d74ebe43bdbc3210f09be9fe6742234d573bacc26ed92b67"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1768,38 +1807,13 @@ dependencies = [
 
 [[package]]
 name = "hax-lib"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61933dbb676f11311378720e1ee97a511813edb7044255381ba0d625cac6be7b"
-dependencies = [
- "hax-lib-macros 0.2.0",
- "num-bigint",
- "num-traits",
-]
-
-[[package]]
-name = "hax-lib"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74d9ba66d1739c68e0219b2b2238b5c4145f491ebf181b9c6ab561a19352ae86"
 dependencies = [
- "hax-lib-macros 0.3.5",
+ "hax-lib-macros",
  "num-bigint",
  "num-traits",
-]
-
-[[package]]
-name = "hax-lib-macros"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ba3a8d32921c3f535e973f72053d20bc8c7f74028911a269748440952157807"
-dependencies = [
- "hax-lib-macros-types 0.2.0",
- "paste",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 2.0.111",
 ]
 
 [[package]]
@@ -1808,24 +1822,11 @@ version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24ba777a231a58d1bce1d68313fa6b6afcc7966adef23d60f45b8a2b9b688bf1"
 dependencies = [
- "hax-lib-macros-types 0.3.5",
+ "hax-lib-macros-types",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
-]
-
-[[package]]
-name = "hax-lib-macros-types"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5a22f64cb35f8363892df6285e7edbe96885cd660d85bfd6765c95886647b77"
-dependencies = [
- "proc-macro2",
- "quote",
- "serde",
- "serde_json",
- "uuid",
+ "syn",
 ]
 
 [[package]]
@@ -1839,6 +1840,20 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+]
+
+[[package]]
+name = "heapless"
+version = "0.7.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdc6457c0eb62c71aac4bc17216026d8410337c4126773b9c5daba343f17964f"
+dependencies = [
+ "atomic-polyfill",
+ "hash32",
+ "rustc_version",
+ "serde",
+ "spin",
+ "stable_deref_trait",
 ]
 
 [[package]]
@@ -1891,37 +1906,15 @@ dependencies = [
 
 [[package]]
 name = "hpke-rs"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0d131cd4e00b0d03bee8a120828a374474511ec1a713f2bdf2fa5528dc92b32"
-dependencies = [
- "hpke-rs-crypto 0.3.0",
- "libcrux-sha3 0.0.4",
- "log",
- "rand_core 0.9.3",
- "zeroize",
-]
-
-[[package]]
-name = "hpke-rs"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8c09b01d75373842d3123a4dd51bad5cb70e95d8b96e50bc20d08877a8d2443"
 dependencies = [
- "hpke-rs-crypto 0.4.0",
+ "hpke-rs-crypto",
  "libcrux-sha3 0.0.4",
  "log",
  "rand_core 0.9.3",
  "zeroize",
-]
-
-[[package]]
-name = "hpke-rs-crypto"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d51ffd304e06803f90f2e56a24a6910f19b8516f842d7b72a436c51026279876"
-dependencies = [
- "rand_core 0.9.3",
 ]
 
 [[package]]
@@ -2046,7 +2039,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.61.2",
+ "windows-core 0.58.0",
 ]
 
 [[package]]
@@ -2259,7 +2252,7 @@ dependencies = [
  "indoc",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -2270,7 +2263,7 @@ checksum = "c34819042dc3d3971c46c2190835914dfbe0c3c13f61449b2997f4e9722dfa60"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -2384,41 +2377,11 @@ checksum = "37c93d8daa9d8a012fd8ab92f088405fb202ea0b6ab73ee2482ae66af4f42091"
 
 [[package]]
 name = "libcrux-hacl-rs"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8bba0885296a72555a5d77056c39cc9b04edd9ab1afa3025ef3dbd96220705c"
-dependencies = [
- "libcrux-macros 0.0.2",
-]
-
-[[package]]
-name = "libcrux-hacl-rs"
 version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2637dc87d158e1f1b550fd9b226443e84153fded4de69028d897b534d16d22e6"
 dependencies = [
- "libcrux-macros 0.0.3",
-]
-
-[[package]]
-name = "libcrux-hkdf"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f42b91d695ed80a637c7670bdc7a5a5e11b98493b01266d985a1477bfaa6bd7"
-dependencies = [
- "libcrux-hacl-rs 0.0.2",
- "libcrux-hmac 0.0.2",
-]
-
-[[package]]
-name = "libcrux-hmac"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e478f3208de8b92021a4e97a9590027e2eb115673ad6b1a2ebdf9f367c2b6057"
-dependencies = [
- "libcrux-hacl-rs 0.0.2",
- "libcrux-macros 0.0.2",
- "libcrux-sha2 0.0.2",
+ "libcrux-macros",
 ]
 
 [[package]]
@@ -2427,18 +2390,9 @@ version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f0e8011bfcdb6059127e673ec0e1fc7b2a3705c683ade9d708875ed4c26cd8d"
 dependencies = [
- "libcrux-hacl-rs 0.0.4",
- "libcrux-macros 0.0.3",
- "libcrux-sha2 0.0.4",
-]
-
-[[package]]
-name = "libcrux-intrinsics"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4f764ef781467a75b92f4df575911f1cdcf77a7beb316d8054a233fed53a7ab"
-dependencies = [
- "hax-lib 0.2.0",
+ "libcrux-hacl-rs",
+ "libcrux-macros",
+ "libcrux-sha2",
 ]
 
 [[package]]
@@ -2448,17 +2402,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc9ee7ef66569dd7516454fe26de4e401c0c62073929803486b96744594b9632"
 dependencies = [
  "core-models",
- "hax-lib 0.3.5",
-]
-
-[[package]]
-name = "libcrux-macros"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3021bc24fb679408d4d7175e21cf808f49816c599733ebf4a97e5bd39c3ce7c0"
-dependencies = [
- "quote",
- "syn 2.0.111",
+ "hax-lib",
 ]
 
 [[package]]
@@ -2468,19 +2412,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffd6aa2dcd5be681662001b81d493f1569c6d49a32361f470b0c955465cd0338"
 dependencies = [
  "quote",
- "syn 2.0.111",
-]
-
-[[package]]
-name = "libcrux-ml-kem"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34075e62474b4531bd02647a59190b9d4982b5ecca5d9775fc3d35dd70d9cff1"
-dependencies = [
- "hax-lib 0.2.0",
- "libcrux-intrinsics 0.0.2",
- "libcrux-platform 0.0.2",
- "libcrux-sha3 0.0.2",
+ "syn",
 ]
 
 [[package]]
@@ -2489,12 +2421,12 @@ version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22a36f21056e552438dbe6ce413b6682001795e53bd1f0e2c941d7e231238e5a"
 dependencies = [
- "hax-lib 0.3.5",
- "libcrux-intrinsics 0.0.4",
+ "hax-lib",
+ "libcrux-intrinsics",
  "libcrux-platform 0.0.3",
  "libcrux-secrets",
  "libcrux-sha3 0.0.5",
- "libcrux-traits 0.0.4",
+ "libcrux-traits",
 ]
 
 [[package]]
@@ -2521,18 +2453,7 @@ version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e4dbbf6bc9f2bc0f20dc3bea3e5c99adff3bdccf6d2a40488963da69e2ec307"
 dependencies = [
- "hax-lib 0.3.5",
-]
-
-[[package]]
-name = "libcrux-sha2"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "412cf855804ed65212e3d61983d500cea8b9259eff35bb6f8bf03aaf0ac19fbc"
-dependencies = [
- "libcrux-hacl-rs 0.0.2",
- "libcrux-macros 0.0.2",
- "libcrux-traits 0.0.2",
+ "hax-lib",
 ]
 
 [[package]]
@@ -2541,20 +2462,9 @@ version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "649d9401e6e1954f58531b8eb13b12c800f85bbadc93362871b63a1f8a8d6d32"
 dependencies = [
- "libcrux-hacl-rs 0.0.4",
- "libcrux-macros 0.0.3",
- "libcrux-traits 0.0.4",
-]
-
-[[package]]
-name = "libcrux-sha3"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3678ede46c5b5e7d5c0035065f8b9575fb67b6df405a88778ddb89cfb71d8fed"
-dependencies = [
- "hax-lib 0.2.0",
- "libcrux-intrinsics 0.0.2",
- "libcrux-platform 0.0.2",
+ "libcrux-hacl-rs",
+ "libcrux-macros",
+ "libcrux-traits",
 ]
 
 [[package]]
@@ -2563,10 +2473,10 @@ version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2400bec764d1c75b8a496d5747cffe32f1fb864a12577f0aca2f55a92021c962"
 dependencies = [
- "hax-lib 0.3.5",
- "libcrux-intrinsics 0.0.4",
+ "hax-lib",
+ "libcrux-intrinsics",
  "libcrux-platform 0.0.2",
- "libcrux-traits 0.0.4",
+ "libcrux-traits",
 ]
 
 [[package]]
@@ -2575,19 +2485,10 @@ version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18e869fdeb9af62c55c3fcd60ce407552eb282d727550ce986abac94a3474479"
 dependencies = [
- "hax-lib 0.3.5",
- "libcrux-intrinsics 0.0.4",
+ "hax-lib",
+ "libcrux-intrinsics",
  "libcrux-platform 0.0.3",
- "libcrux-traits 0.0.4",
-]
-
-[[package]]
-name = "libcrux-traits"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50c487a3fb34361f4f78a9c9dc5eff4ae62ef3ccb69a916af7b524dd288de9db"
-dependencies = [
- "rand 0.9.2",
+ "libcrux-traits",
 ]
 
 [[package]]
@@ -2640,36 +2541,13 @@ dependencies = [
 [[package]]
 name = "libsignal-account-keys"
 version = "0.1.0"
-source = "git+https://github.com/signalapp/libsignal?tag=v0.86.6#494495504f0855eb799d6abfac88568d250eed96"
-dependencies = [
- "argon2",
- "derive_more",
- "displaydoc",
- "hkdf",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "partial-default",
- "protobuf",
- "protobuf-codegen",
- "rand 0.9.2",
- "rand_core 0.9.3",
- "serde",
- "sha2",
- "signal-crypto 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "static_assertions",
- "thiserror 2.0.17",
- "zerocopy",
-]
-
-[[package]]
-name = "libsignal-account-keys"
-version = "0.1.0"
 source = "git+https://github.com/signalapp/libsignal?tag=v0.87.4#38514bdc8acaaffbccd5c96515c68deb2019abe0"
 dependencies = [
  "argon2",
  "derive_more",
  "displaydoc",
  "hkdf",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "libsignal-core",
  "partial-default",
  "protobuf",
  "protobuf-codegen",
@@ -2677,27 +2555,10 @@ dependencies = [
  "rand_core 0.9.3",
  "serde",
  "sha2",
- "signal-crypto 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "signal-crypto",
  "static_assertions",
  "thiserror 2.0.17",
  "zerocopy",
-]
-
-[[package]]
-name = "libsignal-core"
-version = "0.1.0"
-source = "git+https://github.com/signalapp/libsignal?tag=v0.86.6#494495504f0855eb799d6abfac88568d250eed96"
-dependencies = [
- "curve25519-dalek",
- "derive_more",
- "displaydoc",
- "log",
- "rand 0.9.2",
- "sha2",
- "subtle",
- "thiserror 2.0.17",
- "uuid",
- "x25519-dalek",
 ]
 
 [[package]]
@@ -2746,7 +2607,7 @@ dependencies = [
  "bincode",
  "boring",
  "bytes",
- "const-str 1.1.0",
+ "const-str",
  "derive-where",
  "derive_more",
  "displaydoc",
@@ -2757,11 +2618,11 @@ dependencies = [
  "hmac",
  "http",
  "itertools 0.14.0",
- "libsignal-account-keys 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "libsignal-account-keys",
+ "libsignal-core",
  "libsignal-keytrans",
  "libsignal-net-infra",
- "libsignal-protocol 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "libsignal-protocol",
  "libsignal-svrb",
  "log",
  "nonzero_ext",
@@ -2777,7 +2638,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "signal-crypto 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "signal-crypto",
  "static_assertions",
  "strum 0.27.2",
  "subtle",
@@ -2806,7 +2667,7 @@ dependencies = [
  "bitstream-io 1.10.0",
  "boring",
  "bytes",
- "const-str 1.1.0",
+ "const-str",
  "derive-where",
  "derive_more",
  "displaydoc",
@@ -2818,7 +2679,7 @@ dependencies = [
  "hyper-util",
  "indexmap",
  "itertools 0.14.0",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "libsignal-core",
  "log",
  "nonzero_ext",
  "once_cell",
@@ -2847,44 +2708,6 @@ dependencies = [
 [[package]]
 name = "libsignal-protocol"
 version = "0.1.0"
-source = "git+https://github.com/signalapp/libsignal?tag=v0.86.6#494495504f0855eb799d6abfac88568d250eed96"
-dependencies = [
- "aes",
- "aes-gcm-siv",
- "assert_matches",
- "async-trait",
- "bitflags",
- "const-str 0.6.4",
- "ctr",
- "data-encoding-macro",
- "derive-where",
- "derive_more",
- "displaydoc",
- "hex",
- "hkdf",
- "hmac",
- "indexmap",
- "itertools 0.14.0",
- "libcrux-ml-kem 0.0.2",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "log",
- "prost 0.13.5",
- "prost-build 0.13.5",
- "rand 0.9.2",
- "rayon",
- "serde",
- "sha2",
- "signal-crypto 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "spqr 1.2.0",
- "subtle",
- "thiserror 2.0.17",
- "uuid",
- "zerocopy",
-]
-
-[[package]]
-name = "libsignal-protocol"
-version = "0.1.0"
 source = "git+https://github.com/signalapp/libsignal?tag=v0.87.4#38514bdc8acaaffbccd5c96515c68deb2019abe0"
 dependencies = [
  "aes",
@@ -2892,7 +2715,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "bitflags",
- "const-str 1.1.0",
+ "const-str",
  "ctr",
  "data-encoding-macro",
  "derive-where",
@@ -2903,8 +2726,8 @@ dependencies = [
  "hmac",
  "indexmap",
  "itertools 0.14.0",
- "libcrux-ml-kem 0.0.5",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "libcrux-ml-kem",
+ "libsignal-core",
  "log",
  "prost 0.14.3",
  "prost-build 0.14.3",
@@ -2912,8 +2735,8 @@ dependencies = [
  "rayon",
  "serde",
  "sha2",
- "signal-crypto 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
- "spqr 1.4.0",
+ "signal-crypto",
+ "spqr",
  "subtle",
  "thiserror 2.0.17",
  "uuid",
@@ -2923,7 +2746,7 @@ dependencies = [
 [[package]]
 name = "libsignal-service"
 version = "0.1.0"
-source = "git+https://github.com/whisperfish/libsignal-service-rs?rev=8a5d298f2c78f7c9cc41ecaee378618a0f22c843#8a5d298f2c78f7c9cc41ecaee378618a0f22c843"
+source = "git+https://github.com/whisperfish/libsignal-service-rs?rev=72669e18498c73c27ba8430db37aee626e549027#72669e18498c73c27ba8430db37aee626e549027"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -2939,10 +2762,10 @@ dependencies = [
  "hex",
  "hkdf",
  "hmac",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "libsignal-core",
  "libsignal-net",
  "libsignal-net-infra",
- "libsignal-protocol 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "libsignal-protocol",
  "phonenumber",
  "prost 0.13.5",
  "prost-build 0.13.5",
@@ -2953,7 +2776,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "signal-crypto 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "signal-crypto",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -2961,47 +2784,7 @@ dependencies = [
  "url",
  "usernames",
  "uuid",
- "zkgroup 0.9.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
-]
-
-[[package]]
-name = "libsignal-service"
-version = "0.1.0"
-source = "git+https://github.com/whisperfish/libsignal-service-rs?rev=b48b42fbce755035fafafc3b28d5b23844763e49#b48b42fbce755035fafafc3b28d5b23844763e49"
-dependencies = [
- "aes",
- "aes-gcm",
- "async-trait",
- "base64",
- "bincode",
- "bytes",
- "cbc",
- "chrono",
- "ctr",
- "derive_more",
- "futures",
- "hex",
- "hkdf",
- "hmac",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "libsignal-protocol 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "phonenumber",
- "prost 0.13.5",
- "prost-build 0.13.5",
- "rand 0.9.2",
- "rand_core 0.6.4",
- "reqwest",
- "reqwest-websocket",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.17",
- "tokio",
- "tracing",
- "tracing-futures",
- "url",
- "uuid",
- "zkgroup 0.9.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
+ "zkgroup",
 ]
 
 [[package]]
@@ -3018,19 +2801,19 @@ dependencies = [
  "rand 0.9.2",
  "rand_core 0.9.3",
  "sha2",
- "signal-crypto 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "signal-crypto",
  "strum 0.27.2",
  "subtle",
 ]
 
 [[package]]
 name = "libsqlite3-sys"
-version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
+version = "0.36.0"
+source = "git+https://github.com/whisperfish/rusqlite?rev=2a42b3354c9194700d08aa070f70a131a470e7dc#2a42b3354c9194700d08aa070f70a131a470e7dc"
 dependencies = [
  "cc",
  "pkg-config",
+ "sqlcipher-crypto-provider",
  "vcpkg",
 ]
 
@@ -3332,7 +3115,7 @@ checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -3395,7 +3178,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -3463,7 +3246,7 @@ checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -3540,7 +3323,7 @@ checksum = "7459127d7a18cb202d418e4b7df1103ffd6d82a106e9b2091c250624c2ace70d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -3565,6 +3348,16 @@ name = "pastey"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
+
+[[package]]
+name = "pbkdf2"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
+dependencies = [
+ "digest",
+ "hmac",
+]
 
 [[package]]
 name = "pem-rfc7468"
@@ -3604,22 +3397,22 @@ dependencies = [
 
 [[package]]
 name = "phonenumber"
-version = "0.3.7+8.13.52"
+version = "0.3.9+9.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2247167dc3741816fdd4d3690e97f56a892a264b44f4c702078b72d1f8b6bd40"
+checksum = "9114f9c1683dd09c5f4fa024c89fdad783eaae21d3d52dd23ddaaffa29ffb168"
 dependencies = [
- "bincode",
  "either",
  "fnv",
  "nom 7.1.3",
  "once_cell",
+ "postcard",
  "quick-xml",
  "regex",
  "regex-cache",
  "serde",
  "serde_derive",
  "strum 0.26.3",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -3639,7 +3432,7 @@ checksum = "6e918e4ff8c4549eb882f14b3a4bc8c8bc93de829416eacf579f1207a8fbf861"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -3708,16 +3501,6 @@ dependencies = [
 [[package]]
 name = "poksho"
 version = "0.7.0"
-source = "git+https://github.com/signalapp/libsignal?tag=v0.86.6#494495504f0855eb799d6abfac88568d250eed96"
-dependencies = [
- "curve25519-dalek",
- "hmac",
- "sha2",
-]
-
-[[package]]
-name = "poksho"
-version = "0.7.0"
 source = "git+https://github.com/signalapp/libsignal?tag=v0.87.4#38514bdc8acaaffbccd5c96515c68deb2019abe0"
 dependencies = [
  "curve25519-dalek",
@@ -3745,7 +3528,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
 dependencies = [
- "cpufeatures",
+ "cpufeatures 0.2.17",
  "opaque-debug",
  "universal-hash",
 ]
@@ -3757,9 +3540,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d1fe60d06143b2430aa532c94cfe9e29783047f06c0d7fd359a9a51b729fa25"
 dependencies = [
  "cfg-if",
- "cpufeatures",
+ "cpufeatures 0.2.17",
  "opaque-debug",
  "universal-hash",
+]
+
+[[package]]
+name = "postcard"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6764c3b5dd454e283a30e6dfe78e9b31096d9e32036b5d1eaac7a6119ccb9a24"
+dependencies = [
+ "cobs",
+ "embedded-io 0.4.0",
+ "embedded-io 0.6.1",
+ "heapless",
+ "serde",
 ]
 
 [[package]]
@@ -3789,37 +3585,14 @@ dependencies = [
 [[package]]
 name = "presage"
 version = "0.8.0-dev"
+source = "git+https://github.com/whisperfish/presage#c3d4dd56444e264bbd9b416968e121c1fdc6972e"
 dependencies = [
  "base64",
  "bytes",
  "derive_more",
  "futures",
  "hex",
- "libsignal-service 0.1.0 (git+https://github.com/whisperfish/libsignal-service-rs?rev=b48b42fbce755035fafafc3b28d5b23844763e49)",
- "presage-store-sqlite",
- "quickcheck",
- "quickcheck_async",
- "rand 0.9.2",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "presage"
-version = "0.8.0-dev"
-source = "git+https://github.com/whisperfish/presage#a9f1845370009439e2f43eb178a711e528c5c100"
-dependencies = [
- "base64",
- "bytes",
- "derive_more",
- "futures",
- "hex",
- "libsignal-service 0.1.0 (git+https://github.com/whisperfish/libsignal-service-rs?rev=8a5d298f2c78f7c9cc41ecaee378618a0f22c843)",
+ "libsignal-service",
  "rand 0.9.2",
  "serde",
  "serde_json",
@@ -3837,8 +3610,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "libsqlite3-sys",
- "presage 0.8.0-dev (git+https://github.com/whisperfish/presage)",
+ "presage",
  "prost 0.13.5",
  "rand 0.9.2",
  "serde_json",
@@ -3850,13 +3622,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "presage-store-sqlite"
+version = "0.8.0-dev"
+source = "git+https://github.com/whisperfish/presage#c3d4dd56444e264bbd9b416968e121c1fdc6972e"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "chrono",
+ "libsqlite3-sys",
+ "presage",
+ "prost 0.13.5",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.17",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "prettyplease"
 version = "0.2.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -3866,30 +3656,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "219cb19e96be00ab2e37d6e299658a0cfa83e52429179969b0f0121b4ac46983"
 dependencies = [
  "toml_edit",
-]
-
-[[package]]
-name = "proc-macro-error"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
-dependencies = [
- "proc-macro-error-attr",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
- "version_check",
-]
-
-[[package]]
-name = "proc-macro-error-attr"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
-dependencies = [
- "proc-macro2",
- "quote",
- "version_check",
 ]
 
 [[package]]
@@ -3911,7 +3677,7 @@ dependencies = [
  "proc-macro-error-attr2",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -3939,7 +3705,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52717f9a02b6965224f95ca2a81e2e0c5c43baacd28ca057577988930b6c3d5b"
 dependencies = [
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -3978,7 +3744,7 @@ dependencies = [
  "prost 0.13.5",
  "prost-types 0.13.5",
  "regex",
- "syn 2.0.111",
+ "syn",
  "tempfile",
 ]
 
@@ -3997,7 +3763,7 @@ dependencies = [
  "prost 0.14.3",
  "prost-types 0.14.3",
  "regex",
- "syn 2.0.111",
+ "syn",
  "tempfile",
 ]
 
@@ -4011,7 +3777,7 @@ dependencies = [
  "itertools 0.14.0",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -4024,7 +3790,7 @@ dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -4136,27 +3902,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quickcheck"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95c589f335db0f6aaa168a7cd27b1fc6920f5e1470c804f814d9cd6e62a0f70b"
-dependencies = [
- "env_logger",
- "log",
- "rand 0.10.0",
-]
-
-[[package]]
-name = "quickcheck_async"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "247df671941313a4e255a5015772917368f1b21bfedfbd89d68fbb27e802b2fa"
-dependencies = [
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "quinn"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4253,6 +3998,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc266eb313df6c5c09c1c7b1fbe2510961e5bcd3add930c1e31f7ed9da0feff8"
 dependencies = [
+ "chacha20 0.10.0",
  "getrandom 0.4.1",
  "rand_core 0.10.0",
 ]
@@ -4788,7 +4534,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -4812,7 +4558,7 @@ checksum = "175ee3e80ae9982737ca543e96133087cbd9a485eecc3bc4de9c1a37b47ea59c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -4843,7 +4589,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
 dependencies = [
  "cfg-if",
- "cpufeatures",
+ "cpufeatures 0.2.17",
  "digest",
 ]
 
@@ -4854,7 +4600,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
- "cpufeatures",
+ "cpufeatures 0.2.17",
  "digest",
  "sha2-asm",
 ]
@@ -4886,30 +4632,6 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 [[package]]
 name = "signal-crypto"
 version = "0.1.0"
-source = "git+https://github.com/signalapp/libsignal?tag=v0.86.6#494495504f0855eb799d6abfac88568d250eed96"
-dependencies = [
- "aes",
- "cbc",
- "ctr",
- "derive_more",
- "displaydoc",
- "ghash",
- "hkdf",
- "hmac",
- "hpke-rs 0.4.0",
- "hpke-rs-crypto 0.3.0",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "rand_chacha 0.9.0",
- "rand_core 0.9.3",
- "sha1",
- "sha2",
- "subtle",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "signal-crypto"
-version = "0.1.0"
 source = "git+https://github.com/signalapp/libsignal?tag=v0.87.4#38514bdc8acaaffbccd5c96515c68deb2019abe0"
 dependencies = [
  "aes",
@@ -4920,9 +4642,9 @@ dependencies = [
  "ghash",
  "hkdf",
  "hmac",
- "hpke-rs 0.5.0",
- "hpke-rs-crypto 0.4.0",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "hpke-rs",
+ "hpke-rs-crypto",
+ "libsignal-core",
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
  "sha1",
@@ -4975,8 +4697,8 @@ dependencies = [
  "image",
  "mime_guess",
  "notify-rust",
- "presage 0.8.0-dev (git+https://github.com/whisperfish/presage)",
- "presage-store-sqlite",
+ "presage",
+ "presage-store-sqlite 0.8.0-dev (git+https://github.com/whisperfish/presage)",
  "qrcodegen",
  "ratatui",
  "ratatui-image",
@@ -5077,40 +4799,16 @@ dependencies = [
 
 [[package]]
 name = "spqr"
-version = "1.2.0"
-source = "git+https://github.com/signalapp/SparsePostQuantumRatchet.git?tag=v1.2.0#99a759a3fd40cd9304459fb007fcf177db9ed207"
-dependencies = [
- "cpufeatures",
- "curve25519-dalek",
- "displaydoc",
- "hax-lib 0.3.5",
- "hkdf",
- "libcrux-hkdf",
- "libcrux-hmac 0.0.2",
- "libcrux-ml-kem 0.0.2",
- "log",
- "num_enum",
- "prost 0.13.5",
- "prost-build 0.13.5",
- "rand 0.9.2",
- "rand_core 0.9.3",
- "sha2",
- "sorted-vec",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "spqr"
 version = "1.4.0"
 source = "git+https://github.com/signalapp/SparsePostQuantumRatchet.git?tag=v1.4.0#d310c99c57a046549be205b9ce50d80dcbe5f3e4"
 dependencies = [
- "cpufeatures",
+ "cpufeatures 0.2.17",
  "curve25519-dalek",
  "displaydoc",
- "hax-lib 0.3.5",
+ "hax-lib",
  "hkdf",
- "libcrux-hmac 0.0.4",
- "libcrux-ml-kem 0.0.5",
+ "libcrux-hmac",
+ "libcrux-ml-kem",
  "log",
  "num_enum",
  "prost 0.14.3",
@@ -5123,10 +4821,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlcipher-crypto-provider"
+version = "0.1.0"
+source = "git+https://github.com/whisperfish/rusqlite?rev=2a42b3354c9194700d08aa070f70a131a470e7dc#2a42b3354c9194700d08aa070f70a131a470e7dc"
+dependencies = [
+ "aes",
+ "cbc",
+ "hmac",
+ "pbkdf2",
+ "rand 0.10.0",
+ "sha1",
+ "sha2",
+]
+
+[[package]]
 name = "sqlx"
 version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fefb893899429669dcdd979aff487bd78f4064e5e7907e4269081e0ef7d97dc"
+source = "git+https://github.com/gferon/sqlx?rev=53c3a26c1b484175f3beb21853a1061b488bf7af#53c3a26c1b484175f3beb21853a1061b488bf7af"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -5138,8 +4849,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee6798b1838b6a0f69c007c133b8df5866302197e404e8b6ee8ed3e3a5e68dc6"
+source = "git+https://github.com/gferon/sqlx?rev=53c3a26c1b484175f3beb21853a1061b488bf7af#53c3a26c1b484175f3beb21853a1061b488bf7af"
 dependencies = [
  "base64",
  "bytes",
@@ -5173,21 +4883,19 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2d452988ccaacfbf5e0bdbc348fb91d7c8af5bee192173ac3636b5fb6e6715d"
+source = "git+https://github.com/gferon/sqlx?rev=53c3a26c1b484175f3beb21853a1061b488bf7af#53c3a26c1b484175f3beb21853a1061b488bf7af"
 dependencies = [
  "proc-macro2",
  "quote",
  "sqlx-core",
  "sqlx-macros-core",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
 name = "sqlx-macros-core"
 version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19a9c1841124ac5a61741f96e1d9e2ec77424bf323962dd894bdb93f37d5219b"
+source = "git+https://github.com/gferon/sqlx?rev=53c3a26c1b484175f3beb21853a1061b488bf7af#53c3a26c1b484175f3beb21853a1061b488bf7af"
 dependencies = [
  "dotenvy",
  "either",
@@ -5203,7 +4911,7 @@ dependencies = [
  "sqlx-mysql",
  "sqlx-postgres",
  "sqlx-sqlite",
- "syn 2.0.111",
+ "syn",
  "tokio",
  "url",
 ]
@@ -5211,8 +4919,7 @@ dependencies = [
 [[package]]
 name = "sqlx-mysql"
 version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa003f0038df784eb8fecbbac13affe3da23b45194bd57dba231c8f48199c526"
+source = "git+https://github.com/gferon/sqlx?rev=53c3a26c1b484175f3beb21853a1061b488bf7af#53c3a26c1b484175f3beb21853a1061b488bf7af"
 dependencies = [
  "atoi",
  "base64",
@@ -5254,8 +4961,7 @@ dependencies = [
 [[package]]
 name = "sqlx-postgres"
 version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db58fcd5a53cf07c184b154801ff91347e4c30d17a3562a635ff028ad5deda46"
+source = "git+https://github.com/gferon/sqlx?rev=53c3a26c1b484175f3beb21853a1061b488bf7af#53c3a26c1b484175f3beb21853a1061b488bf7af"
 dependencies = [
  "atoi",
  "base64",
@@ -5292,8 +4998,7 @@ dependencies = [
 [[package]]
 name = "sqlx-sqlite"
 version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2d12fe70b2c1b4401038055f90f151b78208de1f9f89a7dbfd41587a10c3eea"
+source = "git+https://github.com/gferon/sqlx?rev=53c3a26c1b484175f3beb21853a1061b488bf7af#53c3a26c1b484175f3beb21853a1061b488bf7af"
 dependencies = [
  "atoi",
  "flume",
@@ -5371,7 +5076,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -5383,7 +5088,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -5391,17 +5096,6 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
-
-[[package]]
-name = "syn"
-version = "1.0.109"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
-dependencies = [
- "proc-macro2",
- "quote",
- "unicode-ident",
-]
 
 [[package]]
 name = "syn"
@@ -5431,7 +5125,7 @@ checksum = "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -5485,7 +5179,7 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -5496,7 +5190,7 @@ checksum = "3ff15c8ecd7de3849db632e14d18d2571fa09dfc5ed93479bc4485c7a517c913"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -5599,7 +5293,7 @@ checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -5798,7 +5492,7 @@ checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -6010,12 +5704,12 @@ dependencies = [
  "hkdf",
  "hmac",
  "log",
- "poksho 0.7.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "poksho",
  "prost 0.14.3",
  "prost-build 0.14.3",
  "rand 0.9.2",
  "sha2",
- "signal-crypto 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "signal-crypto",
  "subtle",
  "thiserror 2.0.17",
 ]
@@ -6081,7 +5775,7 @@ checksum = "d674d135b4a8c1d7e813e2f8d1c9a58308aee4a680323066025e53132218bd91"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -6184,7 +5878,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
  "wasm-bindgen-shared",
 ]
 
@@ -6418,7 +6112,7 @@ checksum = "2bbd5b46c938e506ecbce286b6628a02171d56153ba733b6c741fc627ec9579b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -6429,7 +6123,7 @@ checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -6440,7 +6134,7 @@ checksum = "053c4c462dc91d3b1504c6fe5a726dd15e216ba718e84a0e46a88fbe5ded3515"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -6451,7 +6145,7 @@ checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -6873,7 +6567,7 @@ dependencies = [
  "heck",
  "indexmap",
  "prettyplease",
- "syn 2.0.111",
+ "syn",
  "wasm-metadata",
  "wit-bindgen-core",
  "wit-component",
@@ -6889,7 +6583,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
  "wit-bindgen-core",
  "wit-bindgen-rust",
 ]
@@ -6974,7 +6668,7 @@ checksum = "b659052874eb698efe5b9e8cf382204678a0086ebf46982b79d6ca3182927e5d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
  "synstructure",
 ]
 
@@ -7021,7 +6715,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
  "zbus_names",
  "zvariant",
  "zvariant_utils",
@@ -7056,7 +6750,7 @@ checksum = "d8a8d209fdf45cf5138cbb5a506f6b52522a25afccc534d1475dad8e31105c6a"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -7076,7 +6770,7 @@ checksum = "d71e5d6e06ab090c67b5e44993ec16b72dcbaabc526db883a360057678b48502"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
  "synstructure",
 ]
 
@@ -7097,7 +6791,7 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
 ]
 
 [[package]]
@@ -7130,25 +6824,7 @@ checksum = "eadce39539ca5cb3985590102671f2567e659fca9666581ad3411d59207951f3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
-]
-
-[[package]]
-name = "zkcredential"
-version = "0.1.0"
-source = "git+https://github.com/signalapp/libsignal?tag=v0.86.6#494495504f0855eb799d6abfac88568d250eed96"
-dependencies = [
- "cfg-if",
- "curve25519-dalek",
- "derive-where",
- "displaydoc",
- "partial-default",
- "poksho 0.7.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "rayon",
- "serde",
- "sha2",
- "subtle",
- "thiserror 2.0.17",
+ "syn",
 ]
 
 [[package]]
@@ -7161,42 +6837,12 @@ dependencies = [
  "derive-where",
  "displaydoc",
  "partial-default",
- "poksho 0.7.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "poksho",
  "rayon",
  "serde",
  "sha2",
  "subtle",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "zkgroup"
-version = "0.9.0"
-source = "git+https://github.com/signalapp/libsignal?tag=v0.86.6#494495504f0855eb799d6abfac88568d250eed96"
-dependencies = [
- "aes",
- "aes-gcm-siv",
- "bincode",
- "const-str 0.6.4",
- "curve25519-dalek",
- "derive-where",
- "derive_more",
- "displaydoc",
- "hex",
- "hkdf",
- "libsignal-account-keys 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "partial-default",
- "poksho 0.7.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
- "rand 0.9.2",
- "rayon",
- "serde",
- "sha2",
- "static_assertions",
- "subtle",
- "thiserror 2.0.17",
- "uuid",
- "zkcredential 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.86.6)",
 ]
 
 [[package]]
@@ -7207,17 +6853,17 @@ dependencies = [
  "aes",
  "aes-gcm-siv",
  "bincode",
- "const-str 1.1.0",
+ "const-str",
  "curve25519-dalek",
  "derive-where",
  "derive_more",
  "displaydoc",
  "hex",
  "hkdf",
- "libsignal-account-keys 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
- "libsignal-core 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "libsignal-account-keys",
+ "libsignal-core",
  "partial-default",
- "poksho 0.7.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "poksho",
  "rand 0.9.2",
  "rayon",
  "serde",
@@ -7226,7 +6872,7 @@ dependencies = [
  "subtle",
  "thiserror 2.0.17",
  "uuid",
- "zkcredential 0.1.0 (git+https://github.com/signalapp/libsignal?tag=v0.87.4)",
+ "zkcredential",
 ]
 
 [[package]]
@@ -7291,7 +6937,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn",
  "zvariant_utils",
 ]
 
@@ -7304,6 +6950,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
- "syn 2.0.111",
+ "syn",
  "winnow",
 ]
