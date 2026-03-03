@@ -27,8 +27,8 @@ uuid = "1.18.1"
 serde = "1.0.228"
 toml = "0.9.10"
 
-# presage = { path = "../presage/" }
-presage = { git = "https://github.com/whisperfish/presage" }
+presage = { path = "../presage/" }
+# presage = { git = "https://github.com/whisperfish/presage" }
 presage-store-sqlite = { path = "../database/" }
 # presage-store-sqlite = { git = "https://github.com/whisperfish/presage" }
 
