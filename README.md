@@ -7,7 +7,10 @@
 </div>
 An unnofical minimal terminal interface for the Signal messaging service
 
-### insert demo here ...
+### Screenshot
+<div align="center">
+<img width="356" height="426" alt="Image" src="https://github.com/user-attachments/assets/5d9d9f2b-4c26-4905-a62e-490a4d84110d" />
+</div>
 
 ## Installation
 
