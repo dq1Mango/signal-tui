@@ -36,9 +36,16 @@ The binary will be ./target/release/signal-tui
 * on first startup scan the qr code to link device to your signal account 
 (maybe one day u can register an account but that day is not today)
 
+### NOTE: If the chats fail to load on first startup, send yourself a message via "note to self" and reopen the application
+
 * neovim-esque modal interface
 * i / esc to toggle between "normal" (move around) and "insert" (type messages)
 * j / k / h / l or arrow keys to navigate in normal mode
 * o to enter open options on selected message (reply, edit, etc...)
+* x to cancel replying to a message
+* q to quit
+* ? to open help menu
 
-    
+## Known Issues
+* Chats only become known after receiving a message from them
+* Editing a message will sometimes send a new message with the new content, instead of changing the original message
